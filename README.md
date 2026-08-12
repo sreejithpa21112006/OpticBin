@@ -43,7 +43,7 @@
 
 ---
 
-## 🎯 Executive Summary
+## Executive Summary
 
 Industrial waste processing demands **high-throughput material sorting** of glass, paper, cardboard, plastic, and metal at the edge. Traditional cloud-based AI introduces unacceptable latency and bandwidth dependency. Furthermore, operational auditing and regulatory compliance mandate **Explainable AI (XAI)** overlays to visually verify model decision rationale.
 
@@ -51,19 +51,19 @@ Industrial waste processing demands **high-throughput material sorting** of glas
 
 ---
 
-## 🏆 Core Mission Targets
+## Core Mission Targets
 
 | Target | Description |
 |--------|-------------|
-| ⚡ **Sub-100ms Latency** | End-to-end frame processing including preprocessing, model forward pass, XAI extraction, and rendering |
-| 🔍 **Model Transparency** | Real-time Grad-CAM / Attention Rollout heatmap overlays displayed side-by-side with predictions |
-| 🔌 **Fully Offline** | Self-contained Python runtime — zero external API or cloud dependencies |
-| 🎯 **≥90% Accuracy** | Top-1 accuracy across all 5 unified waste categories on benchmark test sets |
-| 💾 **≤2.5 GB RAM** | Total system memory consumption during active webcam stream inference |
+|**Sub-100ms Latency** | End-to-end frame processing including preprocessing, model forward pass, XAI extraction, and rendering |
+|**Model Transparency** | Real-time Grad-CAM / Attention Rollout heatmap overlays displayed side-by-side with predictions |
+|**Fully Offline** | Self-contained Python runtime — zero external API or cloud dependencies |
+|**≥90% Accuracy** | Top-1 accuracy across all 5 unified waste categories on benchmark test sets |
+|**≤2.5 GB RAM** | Total system memory consumption during active webcam stream inference |
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Primary Selection | Architectural Rationale |
 |-------|-------------------|------------------------|
@@ -75,7 +75,7 @@ Industrial waste processing demands **high-throughput material sorting** of glas
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 opticbin/
@@ -99,7 +99,7 @@ opticbin/
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -136,7 +136,7 @@ streamlit run app.py
 
 ---
 
-## 🏋️ Model Training & Dataset Setup
+## Model Training & Dataset Setup
 
 To train OpticBin on custom waste images or the standard **TrashNet** dataset:
 
@@ -159,7 +159,7 @@ The dashboard will open at `http://localhost:8501` with both **Image Upload** an
 
 ---
 
-## 💡 Usage
+## Usage
 
 ### Image Upload Mode
 
@@ -171,13 +171,13 @@ The dashboard will open at `http://localhost:8501` with both **Image Upload** an
 ### Live Webcam Mode
 
 1. Switch to **📷 Webcam (Live)** in the sidebar
-2. Click **▶️ Start Webcam Stream**
+2. Click **Start Webcam Stream**
 3. Point your camera at waste items for real-time classification
 4. The dual-column view shows the live feed and XAI heatmap side-by-side
 
 ---
 
-## 🧠 Model Architecture
+## Model Architecture
 
 OpticBin supports **dual-backbone** architecture with hot-swappable models:
 
@@ -207,15 +207,15 @@ Input (224×224×3) → MobileViT-XS Backbone → head.conv_1x1 → Global Pool 
 
 | Class | Examples |
 |-------|----------|
-| 🔵 Glass | Bottles, jars, window fragments |
-| 📄 Paper | Newspapers, office paper, magazines |
-| 📦 Cardboard | Corrugated boxes, packaging, shipping cartons |
-| 🟡 Plastic | PET bottles, bags, containers |
-| ⚪ Metal | Aluminum cans, foil, steel containers |
+| Glass | Bottles, jars, window fragments |
+| Paper | Newspapers, office paper, magazines |
+| Cardboard | Corrugated boxes, packaging, shipping cartons |
+| Plastic | PET bottles, bags, containers |
+| Metal | Aluminum cans, foil, steel containers |
 
 ---
 
-## 📦 ONNX Export & Quantization
+## ONNX Export & Quantization
 
 Convert PyTorch checkpoints to optimized ONNX format with dynamic INT8 quantization:
 
@@ -241,7 +241,7 @@ Key export features:
 
 ---
 
-## 🔍 XAI Engine
+## XAI Engine
 
 The `RecyclingXAIEngine` provides simultaneous classification and visual explanation:
 
@@ -264,13 +264,13 @@ print(result["confidence"])        # 0.947
 ```
 
 **Features:**
-- 🔄 **Hot-swappable models** — switch between EfficientNetV2 and MobileViT without restart
-- 🎨 **Blended heatmaps** — Grad-CAM overlays at configurable opacity (default α=0.5)
-- 📊 **Full probability distribution** — softmax scores across all 5 classes
+- **Hot-swappable models** — switch between EfficientNetV2 and MobileViT without restart
+- **Blended heatmaps** — Grad-CAM overlays at configurable opacity (default α=0.5)
+- **Full probability distribution** — softmax scores across all 5 classes
 
 ---
 
-## ⏱️ Latency Budget
+## Latency Budget
 
 Total frame processing budget: **≤ 100ms**
 
@@ -295,7 +295,7 @@ Total frame processing budget: **≤ 100ms**
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please follow these steps:
 
