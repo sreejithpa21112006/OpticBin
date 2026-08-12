@@ -1,0 +1,10 @@
+# This directory stores saved .pt and .onnx model weight files.
+# Place your trained model checkpoints here.
+#
+# Expected files:
+#   - efficientnetv2_s.pt       (PyTorch FP32 checkpoint)
+#   - efficientnetv2_s.onnx     (ONNX FP32 export)
+#   - efficientnetv2_s_int8.onnx (ONNX INT8 quantized)
+#   - mobilevit_xs.pt           (PyTorch FP32 checkpoint)
+#   - mobilevit_xs.onnx         (ONNX FP32 export)
+#   - mobilevit_xs_int8.onnx    (ONNX INT8 quantized)
