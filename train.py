@@ -29,20 +29,19 @@ if sys.platform == "win32":
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-import timm
 
 from config.settings import (
-    CLASS_LABELS,
-    NUM_CLASSES,
-    INPUT_SIZE,
+    DEVICE,
     IMAGENET_MEAN,
     IMAGENET_STD,
-    DEVICE,
+    INPUT_SIZE,
+    NUM_CLASSES,
     WEIGHTS_DIR,
 )
 from models.export_onnx import export_to_onnx_int8
+from src.model_factory import create_backbone
 
 
 # ──────────────────────────────────────────────
@@ -104,8 +103,7 @@ def train_model(
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
 
     # ── 2. Create Backbone Model ──
-    timm_name = "efficientnetv2_rw_m" if model_type == "efficientnetv2_s" else "mobilevit_xs"
-    model = timm.create_model(timm_name, pretrained=True, num_classes=NUM_CLASSES)
+    model = create_backbone(model_type, num_classes=NUM_CLASSES, pretrained=True)
     model = model.to(DEVICE)
 
     criterion = nn.CrossEntropyLoss()
@@ -182,7 +180,12 @@ def train_model(
     # ── 4. Export to INT8 ONNX ──
     print("\n📦 Exporting to ONNX dynamic INT8 format...")
     try:
-        export_to_onnx_int8(pt_checkpoint_path, onnx_fp32_path, onnx_int8_path)
+        export_to_onnx_int8(
+            pt_checkpoint_path,
+            onnx_fp32_path,
+            onnx_int8_path,
+            model_type=model_type,
+        )
         print("✅ Model export & quantization pipeline complete!")
     except Exception as e:
         print(f"⚠️ ONNX Export note: {e}")

@@ -9,6 +9,7 @@ timm>=0.9.0
 # ONNX Inference & Quantization
 onnx>=1.14.0
 onnxruntime>=1.16.0
+onnxscript>=0.1.0
 
 # Explainability (XAI)
 grad-cam>=1.5.0

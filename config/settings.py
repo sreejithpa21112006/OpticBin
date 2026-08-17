@@ -18,10 +18,12 @@ SUPPORTED_MODELS = {
     "efficientnetv2_s": {
         "timm_name": "efficientnetv2_rw_m",
         "description": "Texture-focused CNN — strong on surface material features",
+        "cam_target": "conv_head",
     },
     "mobilevit_xs": {
         "timm_name": "mobilevit_xs",
         "description": "Global spatial ViT — captures shape & structural context",
+        "cam_target": "final_conv",
     },
 }
 

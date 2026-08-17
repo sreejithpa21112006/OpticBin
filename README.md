@@ -85,12 +85,19 @@ opticbin/
 │   ├── export_onnx.py         # PyTorch to ONNX dynamic INT8 quantizer
 │   └── weights/               # Saved .pt and .onnx model artifacts
 ├── src/
+│   ├── camera.py              # Webcam capture session with guaranteed release
+│   ├── model_factory.py       # Shared backbone, checkpoint, and CAM-layer factory
 │   ├── preprocessor.py        # Frame resizing, PIL/CV2 tensor conversions
-│   ├── inference_engine.py    # ONNX Runtime & PyTorch inference wrappers
-│   └── xai_engine.py          # Grad-CAM and Attention Rollout generators
-├── assets/
-│   └── banner.png             # Repository banner image
-├── app.py                     # Streamlit desktop dashboard interface
+│   ├── inference_engine.py    # ONNX Runtime inference wrapper
+│   └── xai_engine.py          # Grad-CAM heatmap generator
+├── ui/
+│   ├── styles.py              # Theme-adaptive dashboard styles
+│   ├── components.py          # Shared header, sidebar, metrics, and guidance
+│   ├── image_view.py          # Image upload classification view
+│   └── webcam_view.py         # Live webcam classification view
+├── app.py                     # Streamlit entry point and view dispatch
+├── train.py                   # Fine-tuning pipeline
+├── download_dataset.py        # TrashNet dataset downloader
 ├── requirements.txt           # Pinned Python package dependencies
 ├── .gitignore
 ├── LICENSE
@@ -103,7 +110,7 @@ opticbin/
 
 ### Prerequisites
 
-- **Python** 3.10+
+- **Python** 3.10–3.13 *(PyTorch wheels are not yet published for 3.14)*
 - **CUDA** 11.8+ *(optional — CPU inference is fully supported)*
 - **Webcam** *(optional — for live stream mode)*
 
@@ -115,7 +122,7 @@ git clone https://github.com/yourusername/opticbin.git
 cd opticbin
 
 # 2. Create and activate virtual environment
-python -m venv venv
+py -3.13 -m venv venv
 
 # Windows
 venv\Scripts\activate
@@ -155,7 +162,7 @@ This will automatically train the model, save the `.pt` checkpoint to `models/we
 
 ---
 
-The dashboard will open at `http://localhost:8501` with both **Image Upload** and **Live Webcam** modes available.
+The dashboard will open at `http://localhost:8501`. The interface follows your Streamlit light or dark theme and supports **Image Upload** and **Live Webcam** modes. If a fine-tuned checkpoint is missing, the sidebar shows that the app is using an ImageNet-pretrained fallback.
 
 ---
 
@@ -165,15 +172,16 @@ The dashboard will open at `http://localhost:8501` with both **Image Upload** an
 
 1. Select your preferred backbone architecture from the sidebar
 2. Upload a waste image (JPG, PNG, BMP, WebP)
-3. View the classification result alongside the Grad-CAM heatmap
-4. Review confidence scores and latency telemetry
+3. Compare the original image with the Grad-CAM heatmap
+4. Review confidence, latency, class probabilities, and disposal guidance
 
 ### Live Webcam Mode
 
-1. Switch to **📷 Webcam (Live)** in the sidebar
-2. Click **Start Webcam Stream**
+1. Switch to **Live Webcam** in the sidebar
+2. Enable **Start webcam stream**
 3. Point your camera at waste items for real-time classification
 4. The dual-column view shows the live feed and XAI heatmap side-by-side
+5. Disable the stream to release the camera
 
 ---
 
@@ -223,13 +231,14 @@ Convert PyTorch checkpoints to optimized ONNX format with dynamic INT8 quantizat
 python models/export_onnx.py \
     --pt_path  models/weights/efficientnetv2_s.pt \
     --onnx_out models/weights/efficientnetv2_s.onnx \
-    --quant_out models/weights/efficientnetv2_s_int8.onnx
+    --quant_out models/weights/efficientnetv2_s_int8.onnx \
+    --model efficientnetv2_s
 ```
 
 **Pipeline:**
 
 ```
-PyTorch .pt  ──→  FP32 ONNX (opset 14)  ──→  Dynamic INT8 ONNX
+PyTorch .pt  ──→  FP32 ONNX (opset 18)  ──→  Dynamic INT8 ONNX
   (~80 MB)          (~80 MB)                     (≤25 MB)
                                               ↓ ~70% size reduction
 ```
