@@ -337,5 +337,6 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 </p>
 
 <p align="center">
-  <sub>OpticBin v1.0.0 · Fully Offline · PyTorch + ONNX Runtime · Grad-CAM XAI</sub>
+  <sub>OpticBin v1.0.0 · Edge-AI Waste Classification · PyTorch + ONNX Runtime · Grad-CAM XAI</sub>
 </p>
+
