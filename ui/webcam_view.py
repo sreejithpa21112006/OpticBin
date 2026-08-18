@@ -12,6 +12,7 @@ from src.camera import CameraError, CameraSession
 from src.preprocessor import preprocess_frame
 from src.xai_engine import RecyclingXAIEngine
 from ui.components import render_empty_state, render_prediction_summary
+from ui.state_manager import SnapshotStateManager
 
 DEFAULT_XAI_INTERVAL = 5
 
@@ -39,23 +40,23 @@ def _render_snapshot_mode(engine: RecyclingXAIEngine) -> None:
     with capture_col:
         trigger_capture = st.button("📸 Capture & Analyze Object", type="primary", use_container_width=True)
 
-    if trigger_capture or st.session_state.get("snapshot_result") is not None:
+    snapshot_data = SnapshotStateManager.get()
+
+    if trigger_capture or snapshot_data is not None:
         if trigger_capture:
             try:
                 with CameraSession() as camera:
                     # Warm up camera for a clean frame
                     for _ in range(5):
                         frame = camera.read()
-                    
+
                     started = time.perf_counter()
                     input_tensor, rgb_float = preprocess_frame(frame)
                     result = engine.explain(input_tensor, rgb_float)
                     latency_ms = (time.perf_counter() - started) * 1000
 
-                    # Store in session state
-                    st.session_state["snapshot_frame"] = frame
-                    st.session_state["snapshot_result"] = result
-                    st.session_state["snapshot_latency"] = latency_ms
+                    SnapshotStateManager.save(result, frame, latency_ms)
+                    snapshot_data = (result, frame, latency_ms)
             except CameraError as exc:
                 st.error(str(exc))
                 return
@@ -63,29 +64,25 @@ def _render_snapshot_mode(engine: RecyclingXAIEngine) -> None:
                 st.error(f"Webcam capture failed: {exc}")
                 return
 
-        # Display full detailed analysis
-        result = st.session_state["snapshot_result"]
-        frame = st.session_state["snapshot_frame"]
-        latency_ms = st.session_state["snapshot_latency"]
+        if snapshot_data is not None:
+            result, frame, latency_ms = snapshot_data
 
-        st.success("Object captured and analyzed!")
-        
-        feed_col, heatmap_col = st.columns(2)
-        display_frame = cv2.cvtColor(cv2.resize(frame, (448, 448)), cv2.COLOR_BGR2RGB)
-        feed_col.image(display_frame, caption="Captured Object", width="stretch")
-        heatmap_col.image(
-            result["heatmap_overlay"],
-            caption=f"Grad-CAM Explanation ({result['class_label'].title()})",
-            width="stretch",
-        )
+            st.success("Object captured and analyzed!")
 
-        render_prediction_summary(result, latency_ms, compact=False)
+            feed_col, heatmap_col = st.columns(2)
+            display_frame = cv2.cvtColor(cv2.resize(frame, (448, 448)), cv2.COLOR_BGR2RGB)
+            feed_col.image(display_frame, caption="Captured Object", width="stretch")
+            heatmap_col.image(
+                result["heatmap_overlay"],
+                caption=f"Grad-CAM Explanation ({result['class_label'].title()})",
+                width="stretch",
+            )
 
-        if st.button("🔄 Clear Snapshot & Capture Another"):
-            del st.session_state["snapshot_result"]
-            del st.session_state["snapshot_frame"]
-            del st.session_state["snapshot_latency"]
-            st.rerun()
+            render_prediction_summary(result, latency_ms, compact=False)
+
+            if st.button("🔄 Clear Snapshot & Capture Another"):
+                SnapshotStateManager.clear()
+                st.rerun()
     else:
         render_empty_state(
             "Ready to capture",
