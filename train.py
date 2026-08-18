@@ -21,10 +21,28 @@ warnings.filterwarnings("ignore", message=".*HF_TOKEN*")
 if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding="utf-8")
-    except Exception:
+    except (AttributeError, OSError):
         pass
 
 from src.trainer import ModelTrainer
+
+
+def train_model(
+    model_type: str = "efficientnetv2_s",
+    data_dir: str = "dataset",
+    epochs: int = 15,
+    batch_size: int = 32,
+    lr: float = 1e-3,
+):
+    """Backward-compatible functional API for dataset training."""
+    trainer = ModelTrainer(
+        model_type=model_type,
+        data_dir=data_dir,
+        epochs=epochs,
+        batch_size=batch_size,
+        lr=lr,
+    )
+    return trainer.fit()
 
 
 def main() -> None:
@@ -43,14 +61,13 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    trainer = ModelTrainer(
+    train_model(
         model_type=args.model,
         data_dir=args.data_dir,
         epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.lr,
     )
-    trainer.fit()
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from __future__ import annotations
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -17,7 +18,21 @@ import torch
 import torch.nn as nn
 import onnxruntime as ort
 
-from config.settings import CLASS_LABELS, NUM_CLASSES
+from config.settings import CLASS_LABELS, WEIGHTS_DIR
+
+
+def resolve_onnx_weights_path(
+    model_type: str,
+    weights_dir: str = WEIGHTS_DIR,
+) -> Path | None:
+    """Find INT8 or FP32 ONNX weights for the given model_type if available."""
+    int8_path = Path(weights_dir) / f"{model_type}_int8.onnx"
+    if int8_path.exists():
+        return int8_path
+    fp32_path = Path(weights_dir) / f"{model_type}.onnx"
+    if fp32_path.exists():
+        return fp32_path
+    return None
 
 
 @dataclass(frozen=True)
@@ -39,13 +54,16 @@ class PredictionResult:
             "latency_ms": self.latency_ms,
         }
 
+    def __getitem__(self, item: str) -> Any:
+        return self.to_dict()[item]
+
 
 class BaseInferenceEngine(ABC):
     """Abstract Base Class for model inference engines."""
 
     @abstractmethod
-    def predict(self, input_data: Any) -> PredictionResult:
-        """Run forward prediction pass and return structured PredictionResult."""
+    def predict(self, input_data: Any) -> PredictionResult | dict:
+        """Run forward prediction pass and return structured PredictionResult or dict."""
         pass
 
 
@@ -56,24 +74,33 @@ class ONNXInferenceEngine(BaseInferenceEngine):
     CUDA/CPU execution provider selection.
     """
 
-    def __init__(self, onnx_model_path: str):
+    def __init__(self, onnx_model_path: str | Path, model_type: str = "efficientnetv2_s"):
+        self.onnx_model_path = str(onnx_model_path)
+        self.model_type = model_type
+        self.using_finetuned_weights = True
+
         available = ort.get_available_providers()
         providers = []
         if "CUDAExecutionProvider" in available:
             providers.append("CUDAExecutionProvider")
         providers.append("CPUExecutionProvider")
 
-        self.session = ort.InferenceSession(onnx_model_path, providers=providers)
+        self.session = ort.InferenceSession(self.onnx_model_path, providers=providers)
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name
         self.provider = self.session.get_providers()[0]
 
-        print(f"[✓] ONNX session initialized — Provider: {self.provider}")
+        print(f"[✓] ONNX session initialized ({model_type}) — Provider: {self.provider}")
 
-    def predict(self, input_array: np.ndarray) -> PredictionResult:
+    def predict(self, input_tensor_or_array: torch.Tensor | np.ndarray) -> PredictionResult:
         """
-        Run forward pass on input_array [1, 3, 224, 224] float32.
+        Run forward pass on input tensor or float32 array of shape [1, 3, 224, 224].
         """
+        if isinstance(input_tensor_or_array, torch.Tensor):
+            input_array = input_tensor_or_array.detach().cpu().numpy().astype(np.float32)
+        else:
+            input_array = np.asarray(input_tensor_or_array, dtype=np.float32)
+
         start = time.perf_counter()
         outputs = self.session.run(
             [self.output_name],
@@ -95,6 +122,23 @@ class ONNXInferenceEngine(BaseInferenceEngine):
             probabilities=probabilities,
             latency_ms=round(latency_ms, 2),
         )
+
+    def explain(
+        self,
+        input_tensor_or_array: torch.Tensor | np.ndarray,
+        rgb_float: np.ndarray,
+    ) -> dict:
+        """ONNX prediction with dummy heatmap overlay for interface compatibility."""
+        result = self.predict(input_tensor_or_array).to_dict()
+        result["heatmap_overlay"] = (rgb_float * 255).astype(np.uint8)
+        return result
+
+    def predict_and_explain(
+        self,
+        input_tensor_or_array: torch.Tensor | np.ndarray,
+        rgb_float: np.ndarray,
+    ) -> dict:
+        return self.explain(input_tensor_or_array, rgb_float)
 
 
 class PyTorchInferenceEngine(BaseInferenceEngine):

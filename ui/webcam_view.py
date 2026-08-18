@@ -140,10 +140,12 @@ def _render_continuous_stream_mode(engine: RecyclingXAIEngine) -> None:
 
                 # Only re-send the heatmap when it actually changed.
                 if explain_this_frame:
+                    is_onnx = getattr(engine, "__class__", None).__name__ == "ONNXInferenceEngine"
+                    mode_tag = "ONNX Fast Mode" if is_onnx else "Grad-CAM"
                     heatmap_slot.image(
                         result["heatmap_overlay"],
                         caption=(
-                            f"Grad-CAM — {result['class_label'].title()} "
+                            f"{mode_tag} -- {result['class_label'].title()} "
                             f"({result['confidence'] * 100:.1f}%)"
                         ),
                         width="stretch",
@@ -153,13 +155,14 @@ def _render_continuous_stream_mode(engine: RecyclingXAIEngine) -> None:
                     render_prediction_summary(result, latency_ms, compact=True)
                     stage = "classify + explain" if explain_this_frame else "classify only"
                     disposal = WASTE_METADATA.get(result["class_label"], {}).get("disposal")
-                    caption = f"Frame {frame_index + 1} · {stage}"
+                    caption = f"Frame {frame_index + 1} - {stage}"
                     if disposal:
-                        caption += f" · Dispose: {disposal}"
+                        caption += f" - Dispose: {disposal}"
                     st.caption(caption)
 
                 frame_index += 1
+                time.sleep(0.01)
     except CameraError as exc:
         st.error(str(exc))
-    except Exception as exc:
+    except (RuntimeError, ValueError, TypeError, KeyError, OSError) as exc:
         st.error(f"Webcam inference failed: {exc}")

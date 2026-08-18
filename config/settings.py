@@ -50,13 +50,11 @@ NUM_CLASSES = len(CLASS_LABELS)
 # ──────────────────────────────────────────────
 WASTE_METADATA: dict[str, dict] = {
     "glass": {
-        "emoji": "🔵",
         "biodegradable": False,
         "category": "Non-Biodegradable",
         "recyclable": True,
         "decomposition": "~1 million years",
         "disposal": "Recycling Bin (Glass)",
-        "disposal_icon": "♻️",
         "color": "#3B82F6",
         "tips": [
             "Rinse before recycling — remove caps and lids",
@@ -66,13 +64,11 @@ WASTE_METADATA: dict[str, dict] = {
         "environmental_impact": "High — glass in landfills never decomposes. Recycling saves 30% energy vs. new production.",
     },
     "paper": {
-        "emoji": "📄",
         "biodegradable": True,
         "category": "Biodegradable",
         "recyclable": True,
         "decomposition": "2–6 weeks",
         "disposal": "Recycling Bin (Paper)",
-        "disposal_icon": "♻️",
         "color": "#10B981",
         "tips": [
             "Keep dry — wet/soiled paper goes to compost, not recycling",
@@ -82,13 +78,11 @@ WASTE_METADATA: dict[str, dict] = {
         "environmental_impact": "Low — decomposes naturally. Recycling 1 ton of paper saves 17 trees.",
     },
     "cardboard": {
-        "emoji": "📦",
         "biodegradable": True,
         "category": "Biodegradable",
         "recyclable": True,
         "decomposition": "2–3 months",
         "disposal": "Recycling Bin (Cardboard)",
-        "disposal_icon": "♻️",
         "color": "#10B981",
         "tips": [
             "Flatten boxes to save space in recycling bins",
@@ -98,13 +92,11 @@ WASTE_METADATA: dict[str, dict] = {
         "environmental_impact": "Low — naturally biodegradable. Recycling reduces deforestation and water pollution.",
     },
     "plastic": {
-        "emoji": "🟡",
         "biodegradable": False,
         "category": "Non-Biodegradable",
         "recyclable": "Partially (Types 1, 2, 5)",
         "decomposition": "450–1000 years",
         "disposal": "Recycling Bin (Plastic) — check type number",
-        "disposal_icon": "⚠️",
         "color": "#EF4444",
         "tips": [
             "Check the resin code (1-7) on the bottom — only 1, 2, and 5 are widely recyclable",
@@ -115,13 +107,11 @@ WASTE_METADATA: dict[str, dict] = {
         "environmental_impact": "Very High — microplastics contaminate water, soil, and food chains. Only ~9% of plastic is ever recycled.",
     },
     "metal": {
-        "emoji": "⚪",
         "biodegradable": False,
         "category": "Non-Biodegradable",
         "recyclable": True,
         "decomposition": "50–500 years (aluminum: 200 yrs, steel: 50 yrs)",
         "disposal": "Recycling Bin (Metal)",
-        "disposal_icon": "♻️",
         "color": "#8B5CF6",
         "tips": [
             "Rinse cans — labels can stay on (they burn off during recycling)",

@@ -40,7 +40,7 @@ def render_image_view(engine: RecyclingXAIEngine) -> None:
             started = time.perf_counter()
             result = engine.predict_and_explain(input_tensor, rgb_float)
             latency_ms = (time.perf_counter() - started) * 1000
-    except Exception as exc:
+    except (RuntimeError, ValueError, TypeError, KeyError, OSError) as exc:
         st.error(f"Inference failed: {exc}")
         return
 

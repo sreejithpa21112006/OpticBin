@@ -10,9 +10,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import torch
-import torch.nn as nn
 import timm
+import torch
+from torch import nn
 
 from config.settings import NUM_CLASSES, SUPPORTED_MODELS, WEIGHTS_DIR
 
@@ -81,6 +81,8 @@ def load_checkpoint(
 
     if isinstance(checkpoint, dict):
         state_dict = checkpoint.get("state_dict", checkpoint)
+        if any(k.startswith("module.") for k in state_dict.keys()):
+            state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
         model.load_state_dict(state_dict)
         return model
 

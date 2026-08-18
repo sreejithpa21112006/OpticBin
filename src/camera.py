@@ -7,6 +7,7 @@ background thread frame buffering for zero-latency live inference streams.
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from typing import Optional, Tuple
@@ -27,7 +28,13 @@ class CameraSession:
         self._capture: cv2.VideoCapture | None = None
 
     def __enter__(self) -> CameraSession:
-        self._capture = cv2.VideoCapture(self.device_index)
+        if sys.platform == "win32":
+            self._capture = cv2.VideoCapture(self.device_index, cv2.CAP_DSHOW)
+            if self._capture is None or not self._capture.isOpened():
+                self._capture = cv2.VideoCapture(self.device_index)
+        else:
+            self._capture = cv2.VideoCapture(self.device_index)
+
         if self._capture is None or not self._capture.isOpened():
             self.release()
             raise CameraError(
@@ -71,7 +78,13 @@ class ThreadedCameraStream:
         self._thread: threading.Thread | None = None
 
     def start(self) -> ThreadedCameraStream:
-        self._capture = cv2.VideoCapture(self.device_index)
+        if sys.platform == "win32":
+            self._capture = cv2.VideoCapture(self.device_index, cv2.CAP_DSHOW)
+            if self._capture is None or not self._capture.isOpened():
+                self._capture = cv2.VideoCapture(self.device_index)
+        else:
+            self._capture = cv2.VideoCapture(self.device_index)
+
         if self._capture is None or not self._capture.isOpened():
             self.stop()
             raise CameraError(f"Could not open webcam device index {self.device_index}.")
