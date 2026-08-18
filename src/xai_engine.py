@@ -110,4 +110,11 @@ class RecyclingXAIEngine:
 
     def switch_model(self, model_type: str, weights_path: str | None = None):
         """Hot-swap the backbone without restarting the application."""
+        if hasattr(self, "cam"):
+            del self.cam
+        if hasattr(self, "model"):
+            del self.model
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         self.__init__(model_type=model_type, weights_path=weights_path)
+

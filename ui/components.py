@@ -23,8 +23,12 @@ def render_header() -> None:
     )
 
 
-def render_sidebar() -> tuple[str, str]:
-    """Render model/input controls and return `(model_choice, input_mode)`."""
+PYTORCH_FRAMEWORK = "PyTorch + Grad-CAM"
+ONNX_FRAMEWORK = "ONNX Runtime (Fast)"
+
+
+def render_sidebar() -> tuple[str, str, str]:
+    """Render model, framework, and input controls. Returns `(model_choice, framework, input_mode)`."""
     with st.sidebar:
         st.header("Workspace")
         model_choice = st.selectbox(
@@ -34,6 +38,13 @@ def render_sidebar() -> tuple[str, str]:
             help="Switch between CNN and ViT architectures without restarting.",
         )
         st.caption(SUPPORTED_MODELS[model_choice]["description"])
+
+        framework = st.radio(
+            "Inference Engine",
+            [PYTORCH_FRAMEWORK, ONNX_FRAMEWORK],
+            index=0,
+            help="Choose PyTorch with Grad-CAM heatmaps or ONNX Runtime for low latency.",
+        )
 
         input_mode = st.radio(
             "Input source",
@@ -54,20 +65,32 @@ def render_sidebar() -> tuple[str, str]:
         for label in CLASS_LABELS:
             meta = WASTE_METADATA[label]
             st.markdown(
-                f"{meta['emoji']} **{label.title()}** · {_bio_short(meta)}"
+                f"**{label.title()}** · {_bio_short(meta)}"
             )
 
-    return model_choice, input_mode
+    return model_choice, framework, input_mode
 
 
-def render_engine_status(model_type: str, using_finetuned_weights: bool) -> None:
-    if using_finetuned_weights:
-        st.sidebar.success(f"Using fine-tuned weights for `{model_type}`.")
+def render_engine_status(model_type: str, framework: str, engine: object) -> None:
+    is_onnx = getattr(engine, "__class__", None).__name__ == "ONNXInferenceEngine"
+    using_finetuned = getattr(engine, "using_finetuned_weights", False)
+
+    if "ONNX" in framework:
+        if is_onnx:
+            st.sidebar.success(f"Using ONNX Runtime engine for `{model_type}`.")
+        else:
+            st.sidebar.warning(
+                f"No `.onnx` checkpoint found for `{model_type}`. "
+                "Falling back to PyTorch engine. Run `python train.py` to export ONNX weights."
+            )
     else:
-        st.sidebar.warning(
-            f"No `{model_type}.pt` checkpoint found. "
-            "Falling back to an ImageNet-pretrained head until you train the model."
-        )
+        if using_finetuned:
+            st.sidebar.success(f"Using fine-tuned PyTorch weights for `{model_type}`.")
+        else:
+            st.sidebar.warning(
+                f"No `{model_type}.pt` checkpoint found. "
+                "Falling back to ImageNet-pretrained weights."
+            )
 
 
 def render_empty_state(title: str, body: str) -> None:
@@ -102,7 +125,7 @@ def render_prediction_summary(result: dict, latency_ms: float, compact: bool = F
         f"""
         <div class="ob-hero">
             <p class="ob-kicker">Prediction</p>
-            <h2>{meta.get('emoji', '')} {label.title()}</h2>
+            <h2>{label.title()}</h2>
             <span class="ob-badge">{bio_label}</span>
             <p class="ob-muted">{meta.get('category', '')}</p>
         </div>

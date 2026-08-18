@@ -23,12 +23,11 @@ warnings.filterwarnings("ignore", message=".*HF_TOKEN*")
 if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding="utf-8")
-    except Exception:
+    except (AttributeError, OSError):
         pass
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
+from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
@@ -42,7 +41,6 @@ from config.settings import (
 )
 from models.export_onnx import export_to_onnx_int8
 from src.model_factory import create_backbone
-
 
 # ──────────────────────────────────────────────
 # Data Augmentations
@@ -71,8 +69,10 @@ def train_model(
     batch_size: int = 32,
     lr: float = 1e-3,
 ):
-    print(f"🚀 Initializing training pipeline for model: {model_type}")
-    print(f"💻 Device: {DEVICE}")
+    print(f"[INFO] Initializing training pipeline for model: {model_type}")
+    print(f"[INFO] Device: {DEVICE}")
+
+    os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
     if not os.path.exists(data_dir):
         raise FileNotFoundError(
@@ -80,12 +80,29 @@ def train_model(
             f"Please run 'python download_dataset.py' or populate '{data_dir}/' with class subfolders."
         )
 
-    # ── 1. Load Dataset ──
+    # Validate dataset structure and check for non-empty subfolders
+    subdirs = [
+        d for d in os.listdir(data_dir)
+        if os.path.isdir(os.path.join(data_dir, d)) and not d.startswith(".")
+    ]
+    if not subdirs:
+        raise ValueError(
+            f"Dataset directory '{data_dir}' has no class subdirectories! "
+            f"Run 'python download_dataset.py --dataset synthetic' or add class subfolders."
+        )
+
+    # -- 1. Load Dataset --
     train_dataset = datasets.ImageFolder(root=data_dir, transform=train_transforms)
     val_dataset = datasets.ImageFolder(root=data_dir, transform=val_transforms)
 
-    print(f"📊 Total images found: {len(train_dataset)} across {len(train_dataset.classes)} classes.")
-    print(f"🏷️ Class mapping: {train_dataset.class_to_idx}")
+    if len(train_dataset) == 0:
+        raise ValueError(
+            f"No valid images found inside subfolders of '{data_dir}'. "
+            f"Supported extensions: .jpg, .jpeg, .png, .bmp, .webp, .tiff"
+        )
+
+    print(f"[INFO] Total images found: {len(train_dataset)} across {len(train_dataset.classes)} classes.")
+    print(f"[INFO] Class mapping: {train_dataset.class_to_idx}")
 
     val_size = int(0.2 * len(train_dataset))
     train_size = len(train_dataset) - val_size
@@ -110,7 +127,7 @@ def train_model(
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-2)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
-    best_acc = 0.0
+    best_acc = -1.0
     os.makedirs(WEIGHTS_DIR, exist_ok=True)
     pt_checkpoint_path = os.path.join(WEIGHTS_DIR, f"{model_type}.pt")
     onnx_fp32_path = os.path.join(WEIGHTS_DIR, f"{model_type}.onnx")
@@ -172,13 +189,13 @@ def train_model(
         if val_acc > best_acc:
             best_acc = val_acc
             torch.save(model.state_dict(), pt_checkpoint_path)
-            print(f"  ⭐ Saved best model checkpoint (Val Acc: {best_acc*100:.2f}%)")
+            print(f"  [OK] Saved best model checkpoint (Val Acc: {best_acc*100:.2f}%)")
 
     total_time = time.time() - start_time
-    print(f"\n🎉 Training complete in {total_time/60:.2f} minutes! Best Val Accuracy: {best_acc*100:.2f}%")
+    print(f"\n[INFO] Training complete in {total_time/60:.2f} minutes! Best Val Accuracy: {best_acc*100:.2f}%")
 
-    # ── 4. Export to INT8 ONNX ──
-    print("\n📦 Exporting to ONNX dynamic INT8 format...")
+    # -- 4. Export to INT8 ONNX --
+    print("\n[INFO] Exporting to ONNX dynamic INT8 format...")
     try:
         export_to_onnx_int8(
             pt_checkpoint_path,
@@ -186,9 +203,9 @@ def train_model(
             onnx_int8_path,
             model_type=model_type,
         )
-        print("✅ Model export & quantization pipeline complete!")
-    except Exception as e:
-        print(f"⚠️ ONNX Export note: {e}")
+        print("[OK] Model export & quantization pipeline complete!")
+    except (RuntimeError, ValueError, OSError) as e:
+        print(f"[WARN] ONNX Export note: {e}")
 
 
 if __name__ == "__main__":

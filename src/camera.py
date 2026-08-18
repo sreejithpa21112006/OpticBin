@@ -6,6 +6,10 @@ Context-managed OpenCV capture with guaranteed release.
 
 from __future__ import annotations
 
+from typing import Self
+
+import sys
+
 import cv2
 import numpy as np
 
@@ -21,8 +25,14 @@ class CameraSession:
         self.device_index = device_index
         self._capture: cv2.VideoCapture | None = None
 
-    def __enter__(self) -> CameraSession:
-        self._capture = cv2.VideoCapture(self.device_index)
+    def __enter__(self) -> Self:
+        if sys.platform == "win32":
+            self._capture = cv2.VideoCapture(self.device_index, cv2.CAP_DSHOW)
+            if self._capture is None or not self._capture.isOpened():
+                self._capture = cv2.VideoCapture(self.device_index)
+        else:
+            self._capture = cv2.VideoCapture(self.device_index)
+
         if self._capture is None or not self._capture.isOpened():
             self.release()
             raise CameraError(

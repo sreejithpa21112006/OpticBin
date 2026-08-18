@@ -22,7 +22,7 @@ if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
-    except Exception:
+    except (AttributeError, OSError):
         pass
 
 import onnx
@@ -33,7 +33,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.model_factory import create_model_from_checkpoint  # noqa: E402
+from src.model_factory import create_model_from_checkpoint
 
 
 def _consolidate_for_quantization(onnx_path: str) -> None:
@@ -85,14 +85,14 @@ def export_to_onnx_int8(
         },
     )
     _consolidate_for_quantization(output_onnx_path)
-    print(f"[✓] FP32 ONNX exported ({resolved_type}) → {output_onnx_path}")
+    print(f"[OK] FP32 ONNX exported ({resolved_type}) -> {output_onnx_path}")
 
     quantize_dynamic(
         model_input=output_onnx_path,
         model_output=quantized_onnx_path,
         weight_type=QuantType.QUInt8,
     )
-    print(f"[✓] INT8 quantized ONNX exported → {quantized_onnx_path}")
+    print(f"[OK] INT8 quantized ONNX exported -> {quantized_onnx_path}")
     print("Export and Quantization successfully completed.")
 
 
