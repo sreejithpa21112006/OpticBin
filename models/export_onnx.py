@@ -46,6 +46,7 @@ def _consolidate_for_quantization(onnx_path: str) -> None:
     """
     model_proto = onnx.load(onnx_path)
     del model_proto.graph.value_info[:]
+    onnx.checker.check_model(model_proto)
     onnx.save(model_proto, onnx_path)
 
 
@@ -85,14 +86,16 @@ def export_to_onnx_int8(
         },
     )
     _consolidate_for_quantization(output_onnx_path)
-    print(f"[✓] FP32 ONNX exported ({resolved_type}) → {output_onnx_path}")
+    fp32_size_mb = Path(output_onnx_path).stat().st_size / (1024 * 1024)
+    print(f"[✓] FP32 ONNX exported ({resolved_type}) → {output_onnx_path} ({fp32_size_mb:.2f} MB)")
 
     quantize_dynamic(
         model_input=output_onnx_path,
         model_output=quantized_onnx_path,
         weight_type=QuantType.QUInt8,
     )
-    print(f"[✓] INT8 quantized ONNX exported → {quantized_onnx_path}")
+    int8_size_mb = Path(quantized_onnx_path).stat().st_size / (1024 * 1024)
+    print(f"[✓] INT8 quantized ONNX exported → {quantized_onnx_path} ({int8_size_mb:.2f} MB)")
     print("Export and Quantization successfully completed.")
 
 
