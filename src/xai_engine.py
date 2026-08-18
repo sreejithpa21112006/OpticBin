@@ -10,10 +10,10 @@ from __future__ import annotations
 import numpy as np
 import torch
 from pytorch_grad_cam import GradCAM
-from pytorch_grad_cam.utils.image import show_cam_on_image
 
 from config.settings import CLASS_LABELS, DEVICE, NUM_CLASSES
 from src.model_factory import create_backbone, get_cam_target_layers, load_checkpoint
+from src.xai_renderer import CAMRenderer
 
 
 class RecyclingXAIEngine:
@@ -37,6 +37,7 @@ class RecyclingXAIEngine:
         self.class_labels = CLASS_LABELS
         self.weights_path = weights_path
         self.using_finetuned_weights = weights_path is not None
+        self.renderer = CAMRenderer()
 
         self.model = create_backbone(
             model_type,
@@ -82,7 +83,7 @@ class RecyclingXAIEngine:
                 logits = self.model(input_tensor)
 
         result = self._build_result(logits)
-        result["heatmap_overlay"] = show_cam_on_image(
+        result["heatmap_overlay"] = self.renderer.blend(
             rgb_float,
             grayscale_cam,
             use_rgb=True,
