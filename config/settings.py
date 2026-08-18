@@ -167,15 +167,15 @@ def get_waste_metadata_obj(label: str) -> WasteMetadata:
     info = WASTE_METADATA[label]
     return WasteMetadata(
         label=label,
-        emoji=info["emoji"],
+        emoji=info.get("emoji", "♻️"),
         biodegradable=info["biodegradable"],
         category=info["category"],
         recyclable=info["recyclable"],
         decomposition=info["decomposition"],
         disposal=info["disposal"],
-        disposal_icon=info["disposal_icon"],
+        disposal_icon=info.get("disposal_icon", "♻️"),
         color=info["color"],
-        tips=list(info["tips"]),
+        tips=list(info.get("tips", [])),
         environmental_impact=info.get("environmental_impact", ""),
     )
 

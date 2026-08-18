@@ -57,6 +57,18 @@ class PredictionResult:
     def __getitem__(self, item: str) -> Any:
         return self.to_dict()[item]
 
+    def __contains__(self, item: Any) -> bool:
+        return item in self.to_dict()
+
+    def __iter__(self):
+        return iter(self.to_dict())
+
+    def keys(self):
+        return self.to_dict().keys()
+
+    def get(self, item: str, default: Any = None) -> Any:
+        return self.to_dict().get(item, default)
+
 
 class BaseInferenceEngine(ABC):
     """Abstract Base Class for model inference engines."""
