@@ -26,6 +26,7 @@ st.set_page_config(
 
 @st.cache_resource(show_spinner=True)
 def load_engine(model_type: str) -> RecyclingXAIEngine:
+    """Load or retrieve cached XAI engine for the active backbone architecture."""
     weights_path = resolve_weights_path(model_type)
     return RecyclingXAIEngine(
         model_type=model_type,
@@ -33,21 +34,26 @@ def load_engine(model_type: str) -> RecyclingXAIEngine:
     )
 
 
-apply_styles()
-render_header()
-model_choice, input_mode = render_sidebar()
+def main() -> None:
+    apply_styles()
+    render_header()
+    model_choice, input_mode = render_sidebar()
 
-engine = load_engine(model_choice)
-render_engine_status(model_choice, engine.using_finetuned_weights)
+    engine = load_engine(model_choice)
+    render_engine_status(model_choice, engine.using_finetuned_weights)
 
-st.divider()
+    st.divider()
 
-if input_mode == IMAGE_MODE:
-    render_image_view(engine)
-else:
-    render_webcam_view(engine)
+    if input_mode == IMAGE_MODE:
+        render_image_view(engine)
+    else:
+        render_webcam_view(engine)
 
-st.divider()
-st.caption(
-    "OpticBin v1.0.0 — Offline waste classification with Grad-CAM explanations."
-)
+    st.divider()
+    st.caption(
+        "OpticBin v1.0.0 — Offline edge waste classification with Grad-CAM explanations."
+    )
+
+
+if __name__ == "__main__":
+    main()

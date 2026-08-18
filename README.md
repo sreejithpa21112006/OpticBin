@@ -35,6 +35,7 @@
 - [Usage](#-usage)
 - [Model Architecture](#-model-architecture)
 - [ONNX Export & Quantization](#-onnx-export--quantization)
+- [Benchmarking & Unit Testing](#-benchmarking--unit-testing)
 - [XAI Engine](#-xai-engine)
 - [Latency Budget](#-latency-budget)
 - [Acceptance Verification](#-acceptance-verification)
@@ -80,23 +81,32 @@ Industrial waste processing demands **high-throughput material sorting** of glas
 ```
 opticbin/
 ├── config/
-│   └── settings.py            # Class labels, input resolutions, device configs
+│   ├── schema.py              # Dataclass configuration models
+│   └── settings.py            # Central configuration & type-safe accessors
 ├── models/
 │   ├── export_onnx.py         # PyTorch to ONNX dynamic INT8 quantizer
+│   ├── benchmark.py           # Model latency & memory benchmark tool
 │   └── weights/               # Saved .pt and .onnx model artifacts
 ├── src/
-│   ├── camera.py              # Webcam capture session with guaranteed release
+│   ├── camera.py              # Webcam session & threaded buffer streamer
 │   ├── model_factory.py       # Shared backbone, checkpoint, and CAM-layer factory
-│   ├── preprocessor.py        # Frame resizing, PIL/CV2 tensor conversions
-│   ├── inference_engine.py    # ONNX Runtime inference wrapper
-│   └── xai_engine.py          # Grad-CAM heatmap generator
+│   ├── preprocessor.py        # Modular image preprocessor pipeline
+│   ├── inference_engine.py    # Standardized PyTorch & ONNX inference engine
+│   ├── trainer.py             # Encapsulated PyTorch trainer and evaluator
+│   ├── xai_engine.py          # Grad-CAM heatmap generator
+│   └── xai_renderer.py        # Heatmap blending & visual overlay renderer
 ├── ui/
 │   ├── styles.py              # Theme-adaptive dashboard styles
 │   ├── components.py          # Shared header, sidebar, metrics, and guidance
+│   ├── state_manager.py       # Type-safe Streamlit session state manager
 │   ├── image_view.py          # Image upload classification view
 │   └── webcam_view.py         # Live webcam classification view
+├── tests/
+│   ├── test_config.py         # Unit tests for config schemas
+│   ├── test_preprocessor.py   # Unit tests for image pipeline
+│   └── test_model_factory.py  # Unit tests for architecture factory
 ├── app.py                     # Streamlit entry point and view dispatch
-├── train.py                   # Fine-tuning pipeline
+├── train.py                   # Fine-tuning CLI entrypoint
 ├── download_dataset.py        # TrashNet dataset downloader
 ├── requirements.txt           # Pinned Python package dependencies
 ├── .gitignore
@@ -162,7 +172,17 @@ This will automatically train the model, save the `.pt` checkpoint to `models/we
 
 ---
 
-The dashboard will open at `http://localhost:8501`. The interface follows your Streamlit light or dark theme and supports **Image Upload** and **Live Webcam** modes. If a fine-tuned checkpoint is missing, the sidebar shows that the app is using an ImageNet-pretrained fallback.
+## Benchmarking & Unit Testing
+
+OpticBin includes a comprehensive unit testing suite and latency benchmarking utility:
+
+```bash
+# Run unit test suite
+python -m unittest discover tests
+
+# Run inference latency benchmark
+python models/benchmark.py --iterations 100
+```
 
 ---
 
@@ -204,8 +224,8 @@ Input (224×224×3) → EfficientNetV2-RW-M Backbone → conv_head → Global Po
 
 ```
 Input (224×224×3) → MobileViT-XS Backbone → head.conv_1x1 → Global Pool → FC(5)
-                                                  ↑
-                                          Grad-CAM Target Layer
+                                                   ↑
+                                           Grad-CAM Target Layer
 ```
 
 - Captures **global shape and structural context**
@@ -235,62 +255,6 @@ python models/export_onnx.py \
     --model efficientnetv2_s
 ```
 
-**Pipeline:**
-
-```
-PyTorch .pt  ──→  FP32 ONNX (opset 18)  ──→  Dynamic INT8 ONNX
-  (~80 MB)          (~80 MB)                     (≤25 MB)
-                                              ↓ ~70% size reduction
-```
-
-Key export features:
-- **Dynamic batch axes** for flexible inference
-- **Constant folding** for graph optimization
-- **QUInt8 weight quantization** via ONNX Runtime
-
----
-
-## XAI Engine
-
-The `RecyclingXAIEngine` provides simultaneous classification and visual explanation:
-
-```python
-from src.xai_engine import RecyclingXAIEngine
-from src.preprocessor import preprocess_frame
-
-# Initialize engine
-engine = RecyclingXAIEngine(model_type="efficientnetv2_s")
-
-# Process a frame
-input_tensor, rgb_float = preprocess_frame(camera_frame)
-
-# Get prediction + Grad-CAM heatmap
-result = engine.predict_and_explain(input_tensor, rgb_float)
-
-print(result["class_label"])       # "plastic"
-print(result["confidence"])        # 0.947
-# result["heatmap_overlay"]       → 224×224×3 visualization image
-```
-
-**Features:**
-- **Hot-swappable models** — switch between EfficientNetV2 and MobileViT without restart
-- **Blended heatmaps** — Grad-CAM overlays at configurable opacity (default α=0.5)
-- **Full probability distribution** — softmax scores across all 5 classes
-
----
-
-## Latency Budget
-
-Total frame processing budget: **≤ 100ms**
-
-| Stage | Budget | Description |
-|-------|--------|-------------|
-| 1. Camera Capture & Resize | **10 ms** | OpenCV frame capture, letterbox resize to 224×224 |
-| 2. ONNX INT8 Forward Pass | **25 ms** | Tensor execution via ONNX Runtime Execution Provider |
-| 3. XAI Heatmap Extraction | **45 ms** | Backward activation pass & matrix color blending |
-| 4. UI Rendering | **20 ms** | Streamlit column layout update and rendering |
-| **Total** | **≤ 100 ms** | **End-to-end pipeline on standard laptop CPU/GPU** |
-
 ---
 
 ## ✅ Acceptance Verification
@@ -304,39 +268,6 @@ Total frame processing budget: **≤ 100ms**
 
 ---
 
-## Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-### Development Setup
-
-```bash
-# Install dev dependencies
-pip install -r requirements.txt
-
-# Run the dashboard in dev mode
-streamlit run app.py --server.runOnSave true
-```
-
----
-
 ## 📜 License
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
-
----
-
-<p align="center">
-  <strong>Built with 💚 for a cleaner planet</strong>
-</p>
-
-<p align="center">
-  <sub>OpticBin v1.0.0 · Edge-AI Waste Classification · PyTorch + ONNX Runtime · Grad-CAM XAI</sub>
-</p>
-
