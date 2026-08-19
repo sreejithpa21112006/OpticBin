@@ -1,92 +1,88 @@
-"""Live webcam classification view with guaranteed camera cleanup."""
+"""Live webcam classification view with interactive camera targeting and instant snapshot capture."""
 
 from __future__ import annotations
 
 import time
 
 import cv2
+import numpy as np
 import streamlit as st
+from PIL import Image
 
 from config.settings import WASTE_METADATA
 from src.camera import CameraError, CameraSession
-from src.preprocessor import preprocess_frame
+from src.preprocessor import preprocess_frame, preprocess_pil
 from src.xai_engine import RecyclingXAIEngine
-from ui.components import render_empty_state, render_prediction_summary
-from ui.state_manager import SnapshotStateManager
+from ui.components import (
+    render_disposal_guidance,
+    render_empty_state,
+    render_prediction_summary,
+    render_probability_chart,
+)
+from ui.state_manager import SessionTracker, SnapshotStateManager
 
 DEFAULT_XAI_INTERVAL = 5
 
 
 def render_webcam_view(engine: RecyclingXAIEngine) -> None:
-    st.subheader("Live webcam")
-    st.caption("Scan waste items live or capture an object snapshot for detailed analysis.")
+    st.subheader("Live Camera & Snapshot View")
+    st.caption("Target your item in the viewfinder and capture for instant AI disposal analysis.")
 
     mode = st.radio(
-        "Select Operation Mode",
-        options=["📸 Smart Object Snapshot", "🎥 Continuous Live Stream"],
+        "Operation Mode",
+        options=["🎯 Interactive Camera Viewfinder", "🎥 Continuous Stream Mode"],
         horizontal=True,
     )
 
-    if mode == "📸 Smart Object Snapshot":
+    if "Interactive Camera Viewfinder" in mode:
         _render_snapshot_mode(engine)
     else:
         _render_continuous_stream_mode(engine)
 
+    _render_session_statistics()
+
 
 def _render_snapshot_mode(engine: RecyclingXAIEngine) -> None:
-    st.info("Point your camera at an object and click **Capture & Analyze Object**.")
+    st.info("🎯 **Target & Capture**: Aim your webcam at the item in the viewfinder below, then click **Take Photo**.")
 
-    capture_col, _ = st.columns([1, 2])
-    with capture_col:
-        trigger_capture = st.button("📸 Capture & Analyze Object", type="primary", use_container_width=True)
+    camera_photo = st.camera_input("Camera Viewfinder", label_visibility="collapsed")
 
-    snapshot_data = SnapshotStateManager.get()
+    if camera_photo is not None:
+        try:
+            image = Image.open(camera_photo)
+            started = time.perf_counter()
+            input_tensor, rgb_float = preprocess_pil(image)
+            result = engine.explain(input_tensor, rgb_float)
+            latency_ms = (time.perf_counter() - started) * 1000
 
-    if trigger_capture or snapshot_data is not None:
-        if trigger_capture:
-            try:
-                with CameraSession() as camera:
-                    # Warm up camera for a clean frame
-                    for _ in range(5):
-                        frame = camera.read()
+            frame_np = np.array(image.convert("RGB"))
+            SnapshotStateManager.save(result, frame_np, latency_ms)
+            SessionTracker.add_scan(result["class_label"], result["confidence"], latency_ms)
+        except Exception as exc:
+            st.error(f"Analysis failed: {exc}")
+            return
 
-                    started = time.perf_counter()
-                    input_tensor, rgb_float = preprocess_frame(frame)
-                    result = engine.explain(input_tensor, rgb_float)
-                    latency_ms = (time.perf_counter() - started) * 1000
+        st.success("✓ Object captured and analyzed!")
 
-                    SnapshotStateManager.save(result, frame, latency_ms)
-                    snapshot_data = (result, frame, latency_ms)
-            except CameraError as exc:
-                st.error(str(exc))
-                return
-            except Exception as exc:
-                st.error(f"Webcam capture failed: {exc}")
-                return
+        feed_col, heatmap_col = st.columns(2)
+        feed_col.image(image, caption="Captured Object", width="stretch")
+        heatmap_col.image(
+            result["heatmap_overlay"],
+            caption=f"Grad-CAM Heatmap ({result['class_label'].title()})",
+            width="stretch",
+        )
 
-        if snapshot_data is not None:
-            result, frame, latency_ms = snapshot_data
-
-            st.success("Object captured and analyzed!")
-
-            feed_col, heatmap_col = st.columns(2)
-            display_frame = cv2.cvtColor(cv2.resize(frame, (448, 448)), cv2.COLOR_BGR2RGB)
-            feed_col.image(display_frame, caption="Captured Object", width="stretch")
-            heatmap_col.image(
-                result["heatmap_overlay"],
-                caption=f"Grad-CAM Explanation ({result['class_label'].title()})",
-                width="stretch",
-            )
-
-            render_prediction_summary(result, latency_ms, compact=False)
-
-            if st.button("🔄 Clear Snapshot & Capture Another"):
-                SnapshotStateManager.clear()
-                st.rerun()
+        render_prediction_summary(result, latency_ms, compact=False)
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            render_disposal_guidance(result)
+        with c2:
+            render_probability_chart(result)
     else:
         render_empty_state(
-            "Ready to capture",
-            "Click 'Capture & Analyze Object' to take a snapshot of the material.",
+            "Camera Viewfinder Ready",
+            "Point your camera at an item in the box above and click 'Take Photo' to capture.",
         )
 
 
@@ -98,19 +94,14 @@ def _render_continuous_stream_mode(engine: RecyclingXAIEngine) -> None:
             min_value=1,
             max_value=15,
             value=DEFAULT_XAI_INTERVAL,
-            help=(
-                "Every frame is classified. The Grad-CAM heatmap needs a much "
-                "slower backward pass, so it refreshes on this interval. "
-                "Higher values give a smoother feed."
-            ),
+            help="Refreshes Grad-CAM heatmaps periodically to maintain smooth stream FPS.",
         )
 
-    running = st.toggle("Start webcam stream", value=False)
+    running = st.toggle("Enable Live Camera Stream", value=False)
     if not running:
         render_empty_state(
-            "Webcam is idle",
-            "Enable the stream to classify frames in real time. "
-            "The camera is released as soon as the stream stops.",
+            "Camera Stream Paused",
+            "Toggle 'Enable Live Camera Stream' to classify items continuously in real time.",
         )
         return
 
@@ -125,7 +116,6 @@ def _render_continuous_stream_mode(engine: RecyclingXAIEngine) -> None:
             while True:
                 frame = camera.read()
                 input_tensor, rgb_float = preprocess_frame(frame)
-
                 explain_this_frame = frame_index % xai_interval == 0
 
                 started = time.perf_counter()
@@ -136,29 +126,20 @@ def _render_continuous_stream_mode(engine: RecyclingXAIEngine) -> None:
                 latency_ms = (time.perf_counter() - started) * 1000
 
                 display_frame = cv2.cvtColor(cv2.resize(frame, (448, 448)), cv2.COLOR_BGR2RGB)
-                feed_slot.image(display_frame, caption="Live feed", width="stretch")
+                feed_slot.image(display_frame, caption="Live Stream Feed", width="stretch")
 
-                # Only re-send the heatmap when it actually changed.
                 if explain_this_frame:
                     is_onnx = getattr(engine, "__class__", None).__name__ == "ONNXInferenceEngine"
-                    mode_tag = "ONNX Fast Mode" if is_onnx else "Grad-CAM"
+                    mode_tag = "ONNX Fast" if is_onnx else "Grad-CAM"
                     heatmap_slot.image(
                         result["heatmap_overlay"],
-                        caption=(
-                            f"{mode_tag} -- {result['class_label'].title()} "
-                            f"({result['confidence'] * 100:.1f}%)"
-                        ),
+                        caption=f"{mode_tag} — {result['class_label'].title()} ({result['confidence'] * 100:.1f}%)",
                         width="stretch",
                     )
+                    SessionTracker.add_scan(result["class_label"], result["confidence"], latency_ms)
 
                 with metrics_slot.container():
                     render_prediction_summary(result, latency_ms, compact=True)
-                    stage = "classify + explain" if explain_this_frame else "classify only"
-                    disposal = WASTE_METADATA.get(result["class_label"], {}).get("disposal")
-                    caption = f"Frame {frame_index + 1} - {stage}"
-                    if disposal:
-                        caption += f" - Dispose: {disposal}"
-                    st.caption(caption)
 
                 frame_index += 1
                 time.sleep(0.01)
@@ -166,3 +147,25 @@ def _render_continuous_stream_mode(engine: RecyclingXAIEngine) -> None:
         st.error(str(exc))
     except (RuntimeError, ValueError, TypeError, KeyError, OSError) as exc:
         st.error(f"Webcam inference failed: {exc}")
+
+
+def _render_session_statistics() -> None:
+    stats = SessionTracker.get_stats()
+    if stats["total"] == 0:
+        return
+
+    st.divider()
+    with st.expander(f"📋 Session Log ({stats['total']} items scanned)", expanded=False):
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Items Scanned", stats["total"])
+        c2.metric("Recyclable Items", stats["recyclable_count"])
+        c3.metric("Recycling Percentage", f"{stats['recyclable_pct']:.1f}%")
+
+        st.subheader("Breakdown by Material")
+        cols = st.columns(len(stats["counts"]))
+        for col, (lbl, cnt) in zip(cols, stats["counts"].items()):
+            col.metric(lbl.title(), cnt)
+
+        if st.button("Clear Session Log"):
+            SessionTracker.clear_history()
+            st.rerun()
