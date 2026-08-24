@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Dict, Tuple
+from collections import defaultdict
+from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
@@ -28,6 +29,7 @@ from config.settings import (
 )
 from models.export_onnx import export_to_onnx_int8
 from src.model_factory import create_backbone
+from src.preprocessor import build_eval_transform
 
 
 class ModelTrainer:
@@ -53,7 +55,7 @@ class ModelTrainer:
         self.device = torch.device(device)
 
         self.train_transforms = transforms.Compose([
-            transforms.Resize(INPUT_SIZE),
+            transforms.Resize(INPUT_SIZE, interpolation=transforms.InterpolationMode.BILINEAR),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomVerticalFlip(p=0.2),
             transforms.RandomRotation(degrees=15),
@@ -62,11 +64,7 @@ class ModelTrainer:
             transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
         ])
 
-        self.val_transforms = transforms.Compose([
-            transforms.Resize(INPUT_SIZE),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-        ])
+        self.val_transforms = build_eval_transform()
 
     def setup_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
         """Load dataset and return (train_loader, val_loader)."""
@@ -79,19 +77,19 @@ class ModelTrainer:
         train_dataset = datasets.ImageFolder(root=self.data_dir, transform=self.train_transforms)
         val_dataset = datasets.ImageFolder(root=self.data_dir, transform=self.val_transforms)
 
-        val_size = int(0.2 * len(train_dataset))
-        train_size = len(train_dataset) - val_size
+        targets = [label for _, label in train_dataset.samples]
+        train_indices, val_indices = _stratified_split(targets, val_ratio=0.2, seed=42)
 
-        generator = torch.Generator().manual_seed(42)
-        indices = torch.randperm(len(train_dataset), generator=generator).tolist()
-
-        train_ds = Subset(train_dataset, indices[:train_size])
-        val_ds = Subset(val_dataset, indices[train_size:])
+        train_ds = Subset(train_dataset, train_indices)
+        val_ds = Subset(val_dataset, val_indices)
 
         train_loader = DataLoader(train_ds, batch_size=self.batch_size, shuffle=True, num_workers=0)
         val_loader = DataLoader(val_ds, batch_size=self.batch_size, shuffle=False, num_workers=0)
 
-        print(f"📊 Dataset prepared: {train_size} train samples, {val_size} val samples.")
+        print(
+            f"Dataset prepared: {len(train_indices)} train samples, "
+            f"{len(val_indices)} val samples (stratified 80/20)."
+        )
         return train_loader, val_loader
 
     def train_epoch(
@@ -199,3 +197,25 @@ class ModelTrainer:
             print(f"⚠️ ONNX export warning: {err}")
 
         return pt_path
+
+
+def _stratified_split(
+    targets: List[int],
+    val_ratio: float = 0.2,
+    seed: int = 42,
+) -> Tuple[List[int], List[int]]:
+    """Split indices per class so train and val keep the same class mix."""
+    rng = torch.Generator().manual_seed(seed)
+    by_class: dict[int, List[int]] = defaultdict(list)
+    for index, label in enumerate(targets):
+        by_class[int(label)].append(index)
+
+    train_indices: List[int] = []
+    val_indices: List[int] = []
+    for indices in by_class.values():
+        perm = torch.randperm(len(indices), generator=rng).tolist()
+        shuffled = [indices[i] for i in perm]
+        n_val = max(1, int(round(len(shuffled) * val_ratio))) if len(shuffled) > 1 else 0
+        val_indices.extend(shuffled[:n_val])
+        train_indices.extend(shuffled[n_val:])
+    return train_indices, val_indices

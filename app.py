@@ -48,18 +48,9 @@ def load_engine(model_type: str, framework: str = "PyTorch + Grad-CAM"):
 def main() -> None:
     apply_styles()
     render_header()
-    sidebar_res = render_sidebar()
-    if len(sidebar_res) == 3:
-        model_choice, framework, input_mode = sidebar_res
-    else:
-        model_choice, input_mode = sidebar_res
-        framework = "PyTorch + Grad-CAM"
-
+    model_choice, framework, input_mode = render_sidebar()
     engine = load_engine(model_choice, framework)
-    try:
-        render_engine_status(model_choice, framework, engine)
-    except TypeError:
-        render_engine_status(model_choice, getattr(engine, "using_finetuned_weights", False))
+    render_engine_status(model_choice, framework, engine)
 
     st.divider()
 

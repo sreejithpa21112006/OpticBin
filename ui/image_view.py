@@ -3,23 +3,26 @@
 from __future__ import annotations
 
 import time
+from typing import Any
 
 import streamlit as st
 from PIL import Image
 
 from src.preprocessor import preprocess_pil
-from src.xai_engine import RecyclingXAIEngine
 from ui.components import (
     render_disposal_guidance,
     render_empty_state,
+    render_heatmap,
     render_prediction_summary,
     render_probability_chart,
+    render_untrained_warning,
 )
 from ui.state_manager import SessionTracker
 
 
-def render_image_view(engine: RecyclingXAIEngine) -> None:
+def render_image_view(engine: Any) -> None:
     st.subheader("Image File Analysis")
+    render_untrained_warning(engine)
     uploaded_file = st.file_uploader(
         "Select a waste image file",
         type=["jpg", "jpeg", "png", "bmp", "webp"],
@@ -49,11 +52,11 @@ def render_image_view(engine: RecyclingXAIEngine) -> None:
     media_col, info_col = st.columns([1.2, 1])
 
     with media_col:
-        original_tab, heatmap_tab = st.tabs(["📷 Original Image", "🔥 Grad-CAM Heatmap"])
+        original_tab, heatmap_tab = st.tabs(["Original Image", "Grad-CAM Heatmap"])
         with original_tab:
             st.image(image, width="stretch")
         with heatmap_tab:
-            st.image(result["heatmap_overlay"], width="stretch")
+            render_heatmap(result.get("heatmap_overlay"), engine)
 
     with info_col:
         render_prediction_summary(result, latency_ms)

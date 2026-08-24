@@ -48,7 +48,7 @@
 
 Industrial waste processing demands **high-throughput material sorting** of glass, paper, cardboard, plastic, and metal at the edge. Traditional cloud-based AI introduces unacceptable latency and bandwidth dependency. Furthermore, operational auditing and regulatory compliance mandate **Explainable AI (XAI)** overlays to visually verify model decision rationale.
 
-**OpticBin** is a self-contained, fully offline edge-AI system that classifies waste materials in real-time with **sub-100ms latency** while providing transparent Grad-CAM / Attention Rollout heatmap overlays for every prediction.
+**OpticBin** is a self-contained, fully offline edge-AI prototype that classifies waste into five materials and shows a Grad-CAM overlay on the **PyTorch** path. You must fine-tune and save weights before predictions are meaningful. ONNX Runtime is a faster classify-only path (no heatmap). The 100 ms / 90% figures are **targets**, not results from this checkout.
 
 ---
 
@@ -56,11 +56,11 @@ Industrial waste processing demands **high-throughput material sorting** of glas
 
 | Target | Description |
 |--------|-------------|
-|**Sub-100ms Latency** | End-to-end frame processing including preprocessing, model forward pass, XAI extraction, and rendering |
-|**Model Transparency** | Real-time Grad-CAM / Attention Rollout heatmap overlays displayed side-by-side with predictions |
-|**Fully Offline** | Self-contained Python runtime — zero external API or cloud dependencies |
-|**≥90% Accuracy** | Top-1 accuracy across all 5 unified waste categories on benchmark test sets |
-|**≤2.5 GB RAM** | Total system memory consumption during active webcam stream inference |
+|**Sub-100ms Latency** | Target for classify-only inference after you have a trained checkpoint (measure with `python models/benchmark.py`) |
+|**Model Transparency** | Grad-CAM overlays on PyTorch. ONNX does not produce heatmaps |
+|**Fully Offline** | No cloud APIs at inference time. First train still downloads TrashNet and ImageNet-pretrained backbones |
+|**≥90% Accuracy** | Training goal on a stratified val split — not a shipped, verified test-set score |
+|**≤2.5 GB RAM** | Design ceiling during webcam streaming |
 
 ---
 
@@ -70,8 +70,8 @@ Industrial waste processing demands **high-throughput material sorting** of glas
 |-------|-------------------|------------------------|
 | **Deep Learning** | `PyTorch` + `timm` | Native dynamic computational graph simplifies internal layer hooking for ViT attention maps and CNN feature maps |
 | **Local Inference Engine** | `ONNX Runtime` (INT8) | Hardware-accelerated execution via CPU/CUDA execution providers, achieving ~75% memory footprint reduction over FP32 |
-| **Explainability (XAI)** | `pytorch-grad-cam` | Model-agnostic support for Grad-CAM (EfficientNetV2) and token-level Attention Rollout (MobileViT) |
-| **Computer Vision** | `OpenCV` + `Albumentations` | High-performance frame transformations and environmental noise augmentations (lighting, crushed items) |
+| **Explainability (XAI)** | `pytorch-grad-cam` | Grad-CAM on EfficientNetV2 `conv_head` and MobileViT `final_conv` (not Attention Rollout) |
+| **Computer Vision** | `OpenCV` + `torchvision` | Shared bilinear 224×224 resize + ImageNet normalize for train-eval and inference |
 | **Dashboard UI** | `Streamlit` | Rapid desktop/web visualization interface providing live webcam feeds and dual-column XAI visual auditing |
 
 ---
@@ -151,6 +151,13 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+Without a checkpoint in `models/weights/`, the UI uses an ImageNet-pretrained backbone with a new 5-class head. Train first:
+
+```bash
+python download_dataset.py
+python train.py --model efficientnetv2_s --epochs 15
+```
+
 ---
 
 ## Model Training & Dataset Setup
@@ -212,7 +219,7 @@ OpticBin supports **dual-backbone** architecture with hot-swappable models:
 ### EfficientNetV2-S *(Texture-Focused CNN)*
 
 ```
-Input (224×224×3) → EfficientNetV2-RW-M Backbone → conv_head → Global Pool → FC(5)
+Input (224×224×3) → EfficientNetV2-RW-S Backbone → conv_head → Global Pool → FC(5)
                                                       ↑
                                               Grad-CAM Target Layer
 ```
@@ -223,7 +230,7 @@ Input (224×224×3) → EfficientNetV2-RW-M Backbone → conv_head → Global Po
 ### MobileViT-XS *(Global Spatial ViT)*
 
 ```
-Input (224×224×3) → MobileViT-XS Backbone → head.conv_1x1 → Global Pool → FC(5)
+Input (224×224×3) → MobileViT-XS Backbone → final_conv → Global Pool → FC(5)
                                                    ↑
                                            Grad-CAM Target Layer
 ```
@@ -261,10 +268,10 @@ python models/export_onnx.py \
 
 | ID | Verification Scenario | Expected Outcome | Status |
 |----|----------------------|-------------------|--------|
-| **AC-1** | Batch execution on 100 test waste images | Model accuracy ≥ 90%; average frame latency ≤ 100 ms | ✅ **PASSED** |
-| **AC-2** | Toggle between EfficientNetV2 and MobileViT | Dashboard updates layer target without application restart or failure | ✅ **PASSED** |
-| **AC-3** | Disconnect internet during live webcam stream | Stream continues at ≥ 15 FPS with zero cloud dependency | ✅ **PASSED** |
-| **AC-4** | Quantize FP32 PyTorch model to INT8 ONNX | Model file size reduced from ~80 MB to ≤ 25 MB | ✅ **VERIFIED** |
+| **AC-1** | Batch execution on 100 test waste images | Model accuracy ≥ 90%; average frame latency ≤ 100 ms | Not verified here — train, then run `python models/benchmark.py` |
+| **AC-2** | Toggle between EfficientNetV2 and MobileViT | Dashboard updates layer target without application restart or failure | Supported in the sidebar (Streamlit cache reload) |
+| **AC-3** | Disconnect internet during live webcam stream | Stream continues with zero cloud dependency | Inference is local; live mode uses a threaded camera + Streamlit fragment |
+| **AC-4** | Quantize FP32 PyTorch model to INT8 ONNX | Smaller INT8 graph after `python models/export_onnx.py` | Pipeline exists; size depends on the backbone you export |
 
 ---
 

@@ -54,6 +54,8 @@ class TestONNXEngine(unittest.TestCase):
 
             explain_res = onnx_engine.explain(dummy_tensor, rgb_float)
             self.assertIn("heatmap_overlay", explain_res)
+            self.assertIsNone(explain_res["heatmap_overlay"])
+            self.assertFalse(explain_res.get("gradcam_available", True))
 
 
 class TestModelFactory(unittest.TestCase):

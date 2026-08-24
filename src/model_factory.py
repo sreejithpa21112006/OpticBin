@@ -68,13 +68,23 @@ def resolve_weights_path(model_type: str, weights_dir: str = WEIGHTS_DIR) -> Pat
     return candidate if candidate.exists() else None
 
 
+def _torch_load(weights_path: str | Path, map_location: str | torch.device) -> Any:
+    """Load a checkpoint, preferring weights_only=True when the file allows it."""
+    try:
+        return torch.load(weights_path, map_location=map_location, weights_only=True)
+    except TypeError:
+        return torch.load(weights_path, map_location=map_location)
+    except Exception:
+        return torch.load(weights_path, map_location=map_location, weights_only=False)
+
+
 def load_checkpoint(
     model: nn.Module,
     weights_path: str | Path,
     map_location: str | torch.device = "cpu",
 ) -> nn.Module:
     """Load a state_dict or full serialized model into `model`."""
-    checkpoint: Any = torch.load(weights_path, map_location=map_location)
+    checkpoint: Any = _torch_load(weights_path, map_location)
 
     if isinstance(checkpoint, nn.Module):
         return checkpoint

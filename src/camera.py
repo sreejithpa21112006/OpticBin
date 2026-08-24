@@ -108,6 +108,9 @@ class ThreadedCameraStream:
                 raise CameraError("No frame available from threaded camera stream yet.")
             return self._latest_frame.copy()
 
+    def is_running(self) -> bool:
+        return self._running and self._thread is not None and self._thread.is_alive()
+
     def stop(self) -> None:
         self._running = False
         if self._thread is not None and self._thread.is_alive():
