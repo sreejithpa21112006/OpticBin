@@ -10,6 +10,7 @@ from config.settings import (
     get_app_config,
     get_model_spec_obj,
     get_waste_metadata_obj,
+    is_recyclable,
 )
 
 
@@ -24,6 +25,7 @@ class TestConfiguration(unittest.TestCase):
         spec = get_model_spec_obj("efficientnetv2_s")
         self.assertEqual(spec.name, "efficientnetv2_s")
         self.assertEqual(spec.cam_target, "conv_head")
+        self.assertEqual(spec.timm_name, "efficientnetv2_rw_s")
 
         with self.assertRaises(ValueError):
             get_model_spec_obj("invalid_architecture")
@@ -41,6 +43,11 @@ class TestConfiguration(unittest.TestCase):
         cfg = get_app_config()
         self.assertEqual(cfg.input_size, (224, 224))
         self.assertEqual(cfg.latency_target_ms, 100)
+
+    def test_is_recyclable(self):
+        self.assertTrue(is_recyclable("paper"))
+        self.assertTrue(is_recyclable("plastic"))
+        self.assertFalse(is_recyclable("unknown_material"))
 
 
 if __name__ == "__main__":

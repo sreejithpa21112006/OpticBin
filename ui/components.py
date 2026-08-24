@@ -87,8 +87,33 @@ def render_engine_status(model_type: str, framework: str, engine: object) -> Non
             st.sidebar.success(f"Fine-tuned PyTorch Engine Active ({model_type})")
         else:
             st.sidebar.warning(
-                f"Using ImageNet-pretrained weights for `{model_type}`."
+                f"No fine-tuned `{model_type}.pt` found. "
+                "Using ImageNet-pretrained weights — waste predictions are not reliable. "
+                "Run `python train.py` first."
             )
+            if not getattr(engine, "supports_gradcam", True):
+                st.sidebar.info("Grad-CAM heatmaps are available only with the PyTorch engine.")
+
+
+def render_untrained_warning(engine: object) -> None:
+    if getattr(engine, "using_finetuned_weights", False):
+        return
+    st.warning(
+        "This session is **not using a fine-tuned waste model**. "
+        "Predictions come from an ImageNet-pretrained backbone with a new 5-class head, "
+        "so labels and disposal guidance can be wrong. Train with `python train.py` "
+        "and keep the checkpoint in `models/weights/`."
+    )
+
+
+def render_heatmap(heatmap, engine: object, caption: str | None = None) -> None:
+    if heatmap is None or not getattr(engine, "supports_gradcam", True):
+        st.info(
+            "Grad-CAM is available only with **PyTorch + Grad-CAM**. "
+            "ONNX Runtime classifies faster but does not produce a heatmap."
+        )
+        return
+    st.image(heatmap, caption=caption, width="stretch")
 
 
 def render_empty_state(title: str, body: str) -> None:

@@ -35,9 +35,19 @@ class RecyclingXAIEngine:
         self.device = torch.device(DEVICE)
         self.model_type = model_type
         self.class_labels = CLASS_LABELS
+        self.supports_gradcam = True
+        self.renderer = CAMRenderer()
+        self._configure(model_type, num_classes, weights_path)
+
+    def _configure(
+        self,
+        model_type: str,
+        num_classes: int,
+        weights_path: str | None,
+    ) -> None:
+        self.model_type = model_type
         self.weights_path = weights_path
         self.using_finetuned_weights = weights_path is not None
-        self.renderer = CAMRenderer()
 
         self.model = create_backbone(
             model_type,
@@ -88,6 +98,7 @@ class RecyclingXAIEngine:
             grayscale_cam,
             use_rgb=True,
         )
+        result["gradcam_available"] = True
         return result
 
     def predict_and_explain(
@@ -117,5 +128,5 @@ class RecyclingXAIEngine:
             del self.model
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        self.__init__(model_type=model_type, weights_path=weights_path)
+        self._configure(model_type, NUM_CLASSES, weights_path)
 

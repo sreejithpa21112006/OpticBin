@@ -6,9 +6,13 @@ Type-safe wrappers for managing Streamlit session state variables.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Optional, Tuple
+
 import numpy as np
 import streamlit as st
+
+from config.settings import is_recyclable
 
 
 class SnapshotStateManager:
@@ -61,7 +65,7 @@ class SessionTracker:
                 "label": label,
                 "confidence": confidence,
                 "latency_ms": latency_ms,
-                "timestamp": st.session_state.get("_last_scan_time", "Just now"),
+                "timestamp": datetime.now().strftime("%H:%M:%S"),
             },
         )
         # Keep last 20 scans
@@ -83,7 +87,7 @@ class SessionTracker:
         for item in history:
             lbl = item["label"]
             counts[lbl] = counts.get(lbl, 0) + 1
-            if lbl in ("glass", "paper", "cardboard", "metal", "plastic"):
+            if is_recyclable(lbl):
                 recyclable_count += 1
 
         return {
@@ -97,4 +101,9 @@ class SessionTracker:
     def clear_history(cls) -> None:
         if cls.KEY_HISTORY in st.session_state:
             del st.session_state[cls.KEY_HISTORY]
+
+
+# Compatibility aliases used by some views.
+SessionTracker = SessionTracker
+SnapshotStateManager = SnapshotStateManager
 

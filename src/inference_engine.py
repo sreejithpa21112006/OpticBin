@@ -90,6 +90,7 @@ class ONNXInferenceEngine(BaseInferenceEngine):
         self.onnx_model_path = str(onnx_model_path)
         self.model_type = model_type
         self.using_finetuned_weights = True
+        self.supports_gradcam = False
 
         available = ort.get_available_providers()
         providers = []
@@ -140,9 +141,10 @@ class ONNXInferenceEngine(BaseInferenceEngine):
         input_tensor_or_array: torch.Tensor | np.ndarray,
         rgb_float: np.ndarray,
     ) -> dict:
-        """ONNX prediction with dummy heatmap overlay for interface compatibility."""
+        """ONNX prediction. Grad-CAM is PyTorch-only; heatmap_overlay is None."""
         result = self.predict(input_tensor_or_array).to_dict()
-        result["heatmap_overlay"] = (rgb_float * 255).astype(np.uint8)
+        result["heatmap_overlay"] = None
+        result["gradcam_available"] = False
         return result
 
     def predict_and_explain(
@@ -161,6 +163,7 @@ class PyTorchInferenceEngine(BaseInferenceEngine):
     def __init__(self, model: nn.Module, device: str = "cpu"):
         self.device = torch.device(device)
         self.model = model.to(self.device).eval()
+        self.supports_gradcam = False
 
     def predict(self, input_tensor: torch.Tensor) -> PredictionResult:
         """

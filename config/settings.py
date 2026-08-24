@@ -19,8 +19,8 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # ──────────────────────────────────────────────
 SUPPORTED_MODELS: dict[str, dict[str, str]] = {
     "efficientnetv2_s": {
-        "timm_name": "efficientnetv2_rw_m",
-        "description": "Texture-focused CNN — strong on surface material features",
+        "timm_name": "efficientnetv2_rw_s",
+        "description": "Texture-focused CNN (EfficientNetV2-RW-S) — strong on surface material features",
         "cam_target": "conv_head",
     },
     "mobilevit_xs": {
@@ -145,6 +145,18 @@ MAX_RAM_GB = 2.5                  # Hard ceiling during webcam streaming
 # ──────────────────────────────────────────────
 WEIGHTS_DIR = "models/weights"
 ONNX_EXPORT_DIR = "models/weights"
+
+
+def is_recyclable(label: str) -> bool:
+    """True when the material is fully or partially recyclable."""
+    rec = WASTE_METADATA.get(label, {}).get("recyclable", False)
+    if rec is True:
+        return True
+    if rec is False:
+        return False
+    if isinstance(rec, str):
+        return rec.lower() not in {"no", "false", "landfill"}
+    return False
 
 
 def get_model_spec_obj(model_type: str) -> ModelSpec:
