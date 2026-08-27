@@ -19,6 +19,7 @@ env/
 # Model Weights (large binary files)
 models/weights/*.pt
 models/weights/*.onnx
+models/weights/*.onnx.data
 !models/weights/.gitkeep
 
 # IDE

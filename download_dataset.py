@@ -6,13 +6,16 @@ Downloads, extracts, or imports waste datasets into dataset/
 Usage:
     python download_dataset.py                       # Downloads TrashNet (default 5-class)
     python download_dataset.py --info                # Displays dataset stats & class counts
-    python download_dataset.py --dataset synthetic   # Generates sample synthetic dataset
+    python download_dataset.py --dataset synthetic   # Generates procedural synthetic dataset
+    python download_dataset.py --dataset multi       # Downloads TrashNet + generates synthetic samples
     python download_dataset.py --import-zip path.zip # Imports dataset from ZIP archive
     python download_dataset.py --import-folder dir/  # Imports dataset from directory
 """
 
 import argparse
+import math
 import os
+import random
 import shutil
 import sys
 import urllib.request
@@ -51,9 +54,11 @@ def download_trashnet(dest_dir: str = DEFAULT_DEST_DIR):
                 src = os.path.join(search_dir, folder)
                 dst = os.path.join(dest_dir, folder)
                 if os.path.isdir(src):
-                    if os.path.exists(dst):
-                        shutil.rmtree(dst)
-                    shutil.move(src, dst)
+                    os.makedirs(dst, exist_ok=True)
+                    for file_name in os.listdir(src):
+                        s_file = os.path.join(src, file_name)
+                        d_file = os.path.join(dst, file_name)
+                        shutil.copy2(s_file, d_file)
         finally:
             if os.path.exists("dataset_temp"):
                 shutil.rmtree("dataset_temp", ignore_errors=True)
@@ -73,37 +78,84 @@ def download_trashnet(dest_dir: str = DEFAULT_DEST_DIR):
         print("   dataset/glass, dataset/paper, dataset/cardboard, dataset/plastic, dataset/metal")
 
 
-def generate_synthetic_dataset(dest_dir: str = DEFAULT_DEST_DIR, samples_per_class: int = 20):
-    """Generates synthetic colored sample images for fast offline testing."""
+def generate_synthetic_dataset(dest_dir: str = DEFAULT_DEST_DIR, samples_per_class: int = 50):
+    """Generates procedural synthetic waste images with realistic textures, highlights, and geometries."""
     os.makedirs(dest_dir, exist_ok=True)
-    print(f"[INFO] Generating synthetic dataset ({samples_per_class} images per class)...")
+    print(f"[INFO] Generating high-variability synthetic dataset ({samples_per_class} images per class)...")
 
     try:
-        from PIL import Image, ImageDraw
+        from PIL import Image, ImageDraw, ImageFilter
     except ImportError:
         print("[WARN] Pillow is required for synthetic generation.")
         return
 
-    colors = {
-        "cardboard": (180, 140, 100),
-        "glass": (100, 180, 240),
-        "metal": (190, 190, 200),
-        "paper": (240, 240, 240),
-        "plastic": (240, 200, 80),
-    }
+    random.seed(42)
 
     for cls_name in CLASS_LABELS:
         cls_dir = os.path.join(dest_dir, cls_name)
         os.makedirs(cls_dir, exist_ok=True)
-        base_color = colors.get(cls_name, (150, 150, 150))
 
         for i in range(1, samples_per_class + 1):
-            img_path = os.path.join(cls_dir, f"sample_{i:03d}.jpg")
-            if not os.path.exists(img_path):
-                img = Image.new("RGB", (224, 224), color=base_color)
-                draw = ImageDraw.Draw(img)
-                draw.rectangle([20, 20, 204, 204], outline=(50, 50, 50), width=3)
-                img.save(img_path, quality=85)
+            img_path = os.path.join(cls_dir, f"syn_{cls_name}_{i:04d}.jpg")
+            if os.path.exists(img_path):
+                continue
+
+            # Base background with subtle color variations
+            bg_color = (random.randint(220, 245), random.randint(220, 245), random.randint(220, 245))
+            img = Image.new("RGB", (224, 224), color=bg_color)
+            draw = ImageDraw.Draw(img)
+
+            # Class-specific procedural styling
+            if cls_name == "cardboard":
+                # Warm brown tone with corrugation texture lines
+                base_c = (random.randint(170, 200), random.randint(130, 150), random.randint(80, 100))
+                bbox = [random.randint(20, 50), random.randint(20, 50), random.randint(170, 200), random.randint(170, 200)]
+                draw.rectangle(bbox, fill=base_c, outline=(120, 90, 60), width=3)
+                for step in range(bbox[1] + 10, bbox[3] - 10, 12):
+                    draw.line([(bbox[0] + 5, step), (bbox[2] - 5, step)], fill=(base_c[0] - 25, base_c[1] - 20, base_c[2] - 15), width=2)
+
+            elif cls_name == "glass":
+                # Translucent blue/green cyan glass bottle shape with specular highlights
+                glass_tint = (random.randint(80, 140), random.randint(180, 220), random.randint(200, 240))
+                cx, cy = 112 + random.randint(-15, 15), 112 + random.randint(-15, 15)
+                rx, ry = random.randint(35, 55), random.randint(65, 85)
+                draw.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=glass_tint, outline=(50, 100, 140), width=3)
+                # Specular reflection arc
+                draw.arc([cx - rx + 8, cy - ry + 8, cx + rx - 8, cy + ry - 8], start=200, end=280, fill=(255, 255, 255), width=4)
+
+            elif cls_name == "metal":
+                # Metallic silver/gray pop can shape with metallic gradient lines
+                cx, cy = 112 + random.randint(-10, 10), 112 + random.randint(-10, 10)
+                w, h = random.randint(70, 90), random.randint(100, 130)
+                draw.rectangle([cx - w // 2, cy - h // 2, cx + w // 2, cy + h // 2], fill=(190, 195, 205), outline=(100, 105, 115), width=3)
+                # Metallic sheen highlight stripes
+                draw.rectangle([cx - 10, cy - h // 2 + 5, cx + 10, cy + h // 2 - 5], fill=(240, 245, 250))
+
+            elif cls_name == "paper":
+                # White/off-white sheet geometry with fold lines and text line markings
+                margin = random.randint(25, 45)
+                points = [
+                    (margin, margin),
+                    (224 - margin - random.randint(0, 15), margin),
+                    (224 - margin, 224 - margin),
+                    (margin + random.randint(0, 15), 224 - margin),
+                ]
+                draw.polygon(points, fill=(250, 248, 242), outline=(180, 180, 180), width=2)
+                # Lines representing text on paper
+                for line_y in range(margin + 20, 224 - margin - 20, 15):
+                    draw.line([(margin + 15, line_y), (224 - margin - 20, line_y)], fill=(160, 160, 170), width=2)
+
+            elif cls_name == "plastic":
+                # Bright yellow/orange/blue plastic container geometry
+                p_colors = [(240, 190, 50), (40, 160, 220), (220, 70, 120), (50, 200, 120)]
+                p_color = random.choice(p_colors)
+                cx, cy = 112 + random.randint(-15, 15), 112 + random.randint(-15, 15)
+                w, h = random.randint(75, 95), random.randint(85, 115)
+                draw.rounded_rectangle([cx - w // 2, cy - h // 2, cx + w // 2, cy + h // 2], radius=15, fill=p_color, outline=(40, 40, 40), width=3)
+                # Plastic cap handle
+                draw.rectangle([cx - 15, cy - h // 2 - 12, cx + 15, cy - h // 2], fill=(220, 220, 220), outline=(50, 50, 50), width=2)
+
+            img.save(img_path, quality=90)
 
     print(f"[OK] Synthetic dataset generated successfully in '{dest_dir}/'")
     print_dataset_info(dest_dir)
@@ -186,10 +238,11 @@ def main():
         "--dataset",
         type=str,
         default="trashnet",
-        choices=["trashnet", "synthetic"],
+        choices=["trashnet", "synthetic", "multi", "combined"],
         help="Dataset source to prepare (default: trashnet)",
     )
     parser.add_argument("--dest", type=str, default=DEFAULT_DEST_DIR, help="Destination directory")
+    parser.add_argument("--samples-per-class", type=int, default=50, help="Number of synthetic samples per class")
     parser.add_argument("--import-zip", type=str, default=None, help="Path to custom ZIP file to import")
     parser.add_argument("--import-folder", type=str, default=None, help="Path to custom folder to import")
     parser.add_argument("--info", action="store_true", help="Display dataset class statistics")
@@ -202,11 +255,15 @@ def main():
         import_custom_zip(args.import_zip, dest_dir=args.dest)
     elif args.import_folder:
         import_custom_folder(args.import_folder, dest_dir=args.dest)
+    elif args.dataset in ["multi", "combined"]:
+        download_trashnet(dest_dir=args.dest)
+        generate_synthetic_dataset(dest_dir=args.dest, samples_per_class=args.samples_per_class)
     elif args.dataset == "synthetic":
-        generate_synthetic_dataset(dest_dir=args.dest)
+        generate_synthetic_dataset(dest_dir=args.dest, samples_per_class=args.samples_per_class)
     else:
         download_trashnet(dest_dir=args.dest)
 
 
 if __name__ == "__main__":
     main()
+

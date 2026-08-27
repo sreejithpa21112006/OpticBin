@@ -57,9 +57,7 @@ class ModelTrainer:
         self.train_transforms = transforms.Compose([
             transforms.Resize(INPUT_SIZE, interpolation=transforms.InterpolationMode.BILINEAR),
             transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomVerticalFlip(p=0.2),
-            transforms.RandomRotation(degrees=15),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+            transforms.RandomRotation(degrees=10),
             transforms.ToTensor(),
             transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
         ])
@@ -87,8 +85,9 @@ class ModelTrainer:
         val_loader = DataLoader(val_ds, batch_size=self.batch_size, shuffle=False, num_workers=0)
 
         print(
-            f"Dataset prepared: {len(train_indices)} train samples, "
-            f"{len(val_indices)} val samples (stratified 80/20)."
+            f"📊 Dataset prepared: {len(train_indices)} train samples, "
+            f"{len(val_indices)} val samples (stratified 80/20).",
+            flush=True,
         )
         return train_loader, val_loader
 
@@ -104,8 +103,9 @@ class ModelTrainer:
         running_loss = 0.0
         correct = 0
         total = 0
+        total_batches = len(train_loader)
 
-        for images, labels in train_loader:
+        for i, (images, labels) in enumerate(train_loader, 1):
             images, labels = images.to(self.device), labels.to(self.device)
 
             optimizer.zero_grad()
@@ -118,6 +118,11 @@ class ModelTrainer:
             _, preds = torch.max(outputs, 1)
             correct += (preds == labels).sum().item()
             total += labels.size(0)
+
+            if i % 10 == 0 or i == total_batches:
+                curr_acc = correct / total if total > 0 else 0.0
+                curr_loss = running_loss / total if total > 0 else 0.0
+                print(f"   ↳ Batch [{i:02d}/{total_batches:02d}] Loss: {curr_loss:.4f} | Acc: {curr_acc*100:.1f}%", flush=True)
 
         epoch_loss = running_loss / total if total > 0 else 0.0
         epoch_acc = correct / total if total > 0 else 0.0
@@ -152,15 +157,24 @@ class ModelTrainer:
 
     def fit(self) -> str:
         """Run complete training, evaluation, and export loop."""
-        print(f"🚀 Initializing training pipeline for backbone: {self.model_type}")
-        print(f"💻 Device: {self.device}")
+        print(f"🚀 Initializing training pipeline for backbone: {self.model_type}", flush=True)
+        print(f"💻 Device: {self.device}", flush=True)
 
         train_loader, val_loader = self.setup_dataloaders()
         model = create_backbone(self.model_type, num_classes=NUM_CLASSES, pretrained=True)
+
+        # Optimize for CPU fine-tuning by freezing early backbone stem if on CPU
+        if self.device.type == "cpu":
+            print("⚡ CPU fine-tuning acceleration: freezing early backbone layers.", flush=True)
+            for name, param in model.named_parameters():
+                if not any(k in name for k in ["classifier", "head", "conv_head", "final_conv", "blocks.5", "blocks.6", "stages.3"]):
+                    param.requires_grad = False
+
         model = model.to(self.device)
 
+        trainable_params = [p for p in model.parameters() if p.requires_grad]
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.AdamW(model.parameters(), lr=self.lr, weight_decay=1e-2)
+        optimizer = optim.AdamW(trainable_params, lr=self.lr, weight_decay=1e-2)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.epochs)
 
         best_acc = 0.0
@@ -178,23 +192,24 @@ class ModelTrainer:
             print(
                 f"Epoch [{epoch:02d}/{self.epochs:02d}] "
                 f"Train Loss: {t_loss:.4f} | Train Acc: {t_acc*100:.2f}% | "
-                f"Val Loss: {v_loss:.4f} | Val Acc: {v_acc*100:.2f}%"
+                f"Val Loss: {v_loss:.4f} | Val Acc: {v_acc*100:.2f}%",
+                flush=True,
             )
 
-            if v_acc > best_acc:
+            if v_acc >= best_acc:
                 best_acc = v_acc
                 torch.save(model.state_dict(), pt_path)
-                print(f"  ⭐ Best checkpoint saved (Val Acc: {best_acc*100:.2f}%)")
+                print(f"  ⭐ Best checkpoint saved (Val Acc: {best_acc*100:.2f}%)", flush=True)
 
         elapsed = time.time() - start_time
-        print(f"\n🎉 Training finished in {elapsed/60:.2f} min! Best Val Acc: {best_acc*100:.2f}%")
+        print(f"\n🎉 Training finished in {elapsed/60:.2f} min! Best Val Acc: {best_acc*100:.2f}%", flush=True)
 
         # Export ONNX INT8
-        print("\n📦 Exporting to ONNX INT8...")
+        print("\n📦 Exporting to ONNX INT8...", flush=True)
         try:
             export_to_onnx_int8(pt_path, onnx_fp32, onnx_int8, model_type=self.model_type)
         except Exception as err:
-            print(f"⚠️ ONNX export warning: {err}")
+            print(f"⚠️ ONNX export warning: {err}", flush=True)
 
         return pt_path
 
@@ -219,3 +234,4 @@ def _stratified_split(
         val_indices.extend(shuffled[:n_val])
         train_indices.extend(shuffled[n_val:])
     return train_indices, val_indices
+

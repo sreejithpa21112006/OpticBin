@@ -51,8 +51,8 @@ def main() -> None:
         "--model",
         type=str,
         default="efficientnetv2_s",
-        choices=["efficientnetv2_s", "mobilevit_xs"],
-        help="Backbone architecture to train",
+        choices=["efficientnetv2_s", "mobilevit_xs", "all"],
+        help="Backbone architecture to train (efficientnetv2_s, mobilevit_xs, or all)",
     )
     parser.add_argument("--data_dir", type=str, default="dataset", help="Dataset directory path")
     parser.add_argument("--epochs", type=int, default=15, help="Number of training epochs")
@@ -61,14 +61,21 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    train_model(
-        model_type=args.model,
-        data_dir=args.data_dir,
-        epochs=args.epochs,
-        batch_size=args.batch_size,
-        lr=args.lr,
-    )
+    models_to_train = ["efficientnetv2_s", "mobilevit_xs"] if args.model == "all" else [args.model]
+
+    for model_name in models_to_train:
+        print(f"\n==========================================")
+        print(f"  Training Model Architecture: {model_name}")
+        print(f"==========================================\n")
+        train_model(
+            model_type=model_name,
+            data_dir=args.data_dir,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            lr=args.lr,
+        )
 
 
 if __name__ == "__main__":
     main()
+
