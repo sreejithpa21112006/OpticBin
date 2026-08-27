@@ -7,6 +7,7 @@ evaluates Top-1 Accuracy, saves PyTorch .pt weights, and exports to INT8 ONNX.
 Usage:
     python train.py --model efficientnetv2_s --epochs 15 --batch_size 32
     python train.py --model mobilevit_xs --epochs 15 --batch_size 32
+    python train.py --model all --epochs 15 --batch_size 32
 """
 
 import argparse
@@ -33,6 +34,8 @@ def train_model(
     epochs: int = 15,
     batch_size: int = 32,
     lr: float = 1e-3,
+    patience: int = 10,
+    use_randaugment: bool = False,
 ):
     """Backward-compatible functional API for dataset training."""
     trainer = ModelTrainer(
@@ -41,6 +44,8 @@ def train_model(
         epochs=epochs,
         batch_size=batch_size,
         lr=lr,
+        patience=patience,
+        use_randaugment=use_randaugment,
     )
     return trainer.fit()
 
@@ -58,24 +63,27 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=15, help="Number of training epochs")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("--patience", type=int, default=10, help="Early stopping patience (epochs)")
+    parser.add_argument("--randaugment", action="store_true", help="Enable RandAugment data augmentation")
 
     args = parser.parse_args()
 
     models_to_train = ["efficientnetv2_s", "mobilevit_xs"] if args.model == "all" else [args.model]
 
     for model_name in models_to_train:
-        print(f"\n==========================================")
+        print("\n==========================================")
         print(f"  Training Model Architecture: {model_name}")
-        print(f"==========================================\n")
+        print("==========================================\n")
         train_model(
             model_type=model_name,
             data_dir=args.data_dir,
             epochs=args.epochs,
             batch_size=args.batch_size,
             lr=args.lr,
+            patience=args.patience,
+            use_randaugment=args.randaugment,
         )
 
 
 if __name__ == "__main__":
     main()
-

@@ -232,6 +232,78 @@ def print_dataset_info(dest_dir: str = DEFAULT_DEST_DIR):
     print(f"  Total: {total_images} images across {len(subdirs)} classes.\n")
 
 
+def augment_dataset(dest_dir: str = DEFAULT_DEST_DIR, multiplier: int = 2):
+    """
+    Expands the dataset by generating realistic offline augmented images
+    (rotations, color variations, flips, zoom) for each class folder.
+    """
+    if not os.path.exists(dest_dir):
+        print(f"[ERROR] Dataset directory '{dest_dir}' does not exist.")
+        return
+
+    try:
+        from PIL import Image, ImageEnhance, ImageOps
+        import random
+    except ImportError:
+        print("[ERROR] PIL is required for offline augmentation.")
+        return
+
+    print(f"[INFO] Augmenting dataset in '{dest_dir}' with a {multiplier}x factor...")
+    subdirs = [
+        d for d in os.listdir(dest_dir)
+        if os.path.isdir(os.path.join(dest_dir, d)) and not d.startswith(".")
+    ]
+
+    total_created = 0
+    image_extensions = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
+
+    for folder in sorted(subdirs):
+        folder_path = os.path.join(dest_dir, folder)
+        images = [f for f in os.listdir(folder_path) if os.path.splitext(f)[1].lower() in image_extensions]
+        original_count = len(images)
+        created_count = 0
+
+        for img_name in images:
+            img_path = os.path.join(folder_path, img_name)
+            try:
+                with Image.open(img_path) as img:
+                    img = img.convert("RGB")
+                    base_name, ext = os.path.splitext(img_name)
+
+                    for m in range(1, multiplier):
+                        aug_name = f"{base_name}_aug{m}{ext}"
+                        aug_path = os.path.join(folder_path, aug_name)
+                        if os.path.exists(aug_path):
+                            continue
+
+                        aug_img = img.copy()
+
+                        # Random Horizontal Flip
+                        if random.random() > 0.5:
+                            aug_img = aug_img.transpose(Image.FLIP_LEFT_RIGHT)
+
+                        # Random Rotation (-25 to 25 deg)
+                        angle = random.uniform(-25, 25)
+                        aug_img = aug_img.rotate(angle, resample=Image.BICUBIC, fillcolor=(255, 255, 255))
+
+                        # Color / Brightness Jitter
+                        brightness = random.uniform(0.8, 1.2)
+                        contrast = random.uniform(0.8, 1.2)
+                        aug_img = ImageEnhance.Brightness(aug_img).enhance(brightness)
+                        aug_img = ImageEnhance.Contrast(aug_img).enhance(contrast)
+
+                        aug_img.save(aug_path, quality=90)
+                        created_count += 1
+            except Exception as e:
+                continue
+
+        total_created += created_count
+        print(f"  - {folder:<15}: {original_count} original -> +{created_count} augmented")
+
+    print(f"\n[OK] Dataset augmentation completed! Added {total_created} new images.")
+    print_dataset_info(dest_dir)
+
+
 def main():
     parser = argparse.ArgumentParser(description="OpticBin Dataset Downloader & Manager")
     parser.add_argument(
@@ -245,12 +317,15 @@ def main():
     parser.add_argument("--samples-per-class", type=int, default=50, help="Number of synthetic samples per class")
     parser.add_argument("--import-zip", type=str, default=None, help="Path to custom ZIP file to import")
     parser.add_argument("--import-folder", type=str, default=None, help="Path to custom folder to import")
+    parser.add_argument("--augment", type=int, default=0, help="Offline augmentation factor per image (e.g., 2 or 3)")
     parser.add_argument("--info", action="store_true", help="Display dataset class statistics")
 
     args = parser.parse_args()
 
     if args.info:
         print_dataset_info(args.dest)
+    elif args.augment > 1:
+        augment_dataset(dest_dir=args.dest, multiplier=args.augment)
     elif args.import_zip:
         import_custom_zip(args.import_zip, dest_dir=args.dest)
     elif args.import_folder:

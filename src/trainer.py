@@ -8,6 +8,7 @@ and INT8 ONNX export.
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from collections import defaultdict
@@ -32,6 +33,28 @@ from src.model_factory import create_backbone
 from src.preprocessor import build_eval_transform
 
 
+def _stratified_split(
+    targets: List[int],
+    val_ratio: float = 0.2,
+    seed: int = 42,
+) -> Tuple[List[int], List[int]]:
+    """Split indices per class so train and val keep the same class mix."""
+    rng = torch.Generator().manual_seed(seed)
+    by_class: dict[int, List[int]] = defaultdict(list)
+    for index, label in enumerate(targets):
+        by_class[int(label)].append(index)
+
+    train_indices: List[int] = []
+    val_indices: List[int] = []
+    for indices in by_class.values():
+        perm = torch.randperm(len(indices), generator=rng).tolist()
+        shuffled = [indices[i] for i in perm]
+        n_val = max(1, int(round(len(shuffled) * val_ratio))) if len(shuffled) > 1 else 0
+        val_indices.extend(shuffled[:n_val])
+        train_indices.extend(shuffled[n_val:])
+    return train_indices, val_indices
+
+
 class ModelTrainer:
     """
     Encapsulates dataset preparation, model training, evaluation,
@@ -46,6 +69,8 @@ class ModelTrainer:
         batch_size: int = 32,
         lr: float = 1e-3,
         device: str = DEVICE,
+        patience: int = 10,
+        use_randaugment: bool = False,
     ):
         self.model_type = model_type
         self.data_dir = data_dir
@@ -53,15 +78,28 @@ class ModelTrainer:
         self.batch_size = batch_size
         self.lr = lr
         self.device = torch.device(device)
+        self.patience = patience
+        self.use_randaugment = use_randaugment
 
-        self.train_transforms = transforms.Compose([
+        train_transform_list = [
             transforms.Resize(INPUT_SIZE, interpolation=transforms.InterpolationMode.BILINEAR),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomRotation(degrees=10),
+        ]
+        if self.use_randaugment and hasattr(transforms, "RandAugment"):
+            train_transform_list.append(transforms.RandAugment(num_ops=2, magnitude=9))
+        else:
+            train_transform_list.extend([
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.2),
+                transforms.RandomRotation(degrees=20),
+                transforms.ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25),
+            ])
+
+        train_transform_list.extend([
             transforms.ToTensor(),
             transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
         ])
 
+        self.train_transforms = transforms.Compose(train_transform_list)
         self.val_transforms = build_eval_transform()
 
     def setup_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
@@ -97,32 +135,36 @@ class ModelTrainer:
         train_loader: DataLoader,
         criterion: nn.Module,
         optimizer: optim.Optimizer,
+        scaler: torch.cuda.amp.GradScaler | None = None,
     ) -> Tuple[float, float]:
-        """Execute one training epoch and return (train_loss, train_acc)."""
+        """Execute one training epoch with optional Automatic Mixed Precision (AMP)."""
         model.train()
         running_loss = 0.0
         correct = 0
         total = 0
-        total_batches = len(train_loader)
+        use_amp = self.device.type == "cuda"
 
-        for i, (images, labels) in enumerate(train_loader, 1):
-            images, labels = images.to(self.device), labels.to(self.device)
+        for images, labels in train_loader:
+            images, labels = images.to(self.device, non_blocking=True), labels.to(self.device, non_blocking=True)
+            optimizer.zero_grad(set_to_none=True)
 
-            optimizer.zero_grad()
-            outputs = model(images)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+            if use_amp and scaler is not None:
+                with torch.amp.autocast("cuda"):
+                    outputs = model(images)
+                    loss = criterion(outputs, labels)
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
 
             running_loss += loss.item() * images.size(0)
             _, preds = torch.max(outputs, 1)
             correct += (preds == labels).sum().item()
             total += labels.size(0)
-
-            if i % 10 == 0 or i == total_batches:
-                curr_acc = correct / total if total > 0 else 0.0
-                curr_loss = running_loss / total if total > 0 else 0.0
-                print(f"   ↳ Batch [{i:02d}/{total_batches:02d}] Loss: {curr_loss:.4f} | Acc: {curr_acc*100:.1f}%", flush=True)
 
         epoch_loss = running_loss / total if total > 0 else 0.0
         epoch_acc = correct / total if total > 0 else 0.0
@@ -139,12 +181,18 @@ class ModelTrainer:
         running_loss = 0.0
         correct = 0
         total = 0
+        use_amp = self.device.type == "cuda"
 
         with torch.no_grad():
             for images, labels in val_loader:
-                images, labels = images.to(self.device), labels.to(self.device)
-                outputs = model(images)
-                loss = criterion(outputs, labels)
+                images, labels = images.to(self.device, non_blocking=True), labels.to(self.device, non_blocking=True)
+                if use_amp:
+                    with torch.amp.autocast("cuda"):
+                        outputs = model(images)
+                        loss = criterion(outputs, labels)
+                else:
+                    outputs = model(images)
+                    loss = criterion(outputs, labels)
 
                 running_loss += loss.item() * images.size(0)
                 _, preds = torch.max(outputs, 1)
@@ -159,6 +207,7 @@ class ModelTrainer:
         """Run complete training, evaluation, and export loop."""
         print(f"🚀 Initializing training pipeline for backbone: {self.model_type}", flush=True)
         print(f"💻 Device: {self.device}", flush=True)
+        print(f"⚙️ Hyperparams: epochs={self.epochs}, batch_size={self.batch_size}, lr={self.lr}, patience={self.patience}", flush=True)
 
         train_loader, val_loader = self.setup_dataloaders()
         model = create_backbone(self.model_type, num_classes=NUM_CLASSES, pretrained=True)
@@ -175,34 +224,70 @@ class ModelTrainer:
         trainable_params = [p for p in model.parameters() if p.requires_grad]
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.AdamW(trainable_params, lr=self.lr, weight_decay=1e-2)
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.epochs)
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.epochs, eta_min=1e-6)
 
         best_acc = 0.0
+        best_loss = float("inf")
+        patience_counter = 0
+
         os.makedirs(WEIGHTS_DIR, exist_ok=True)
         pt_path = os.path.join(WEIGHTS_DIR, f"{self.model_type}.pt")
         onnx_fp32 = os.path.join(WEIGHTS_DIR, f"{self.model_type}.onnx")
         onnx_int8 = os.path.join(WEIGHTS_DIR, f"{self.model_type}_int8.onnx")
+        metrics_path = os.path.join(WEIGHTS_DIR, f"{self.model_type}_metrics.json")
 
+        history = []
+        scaler = torch.amp.GradScaler("cuda") if self.device.type == "cuda" else None
         start_time = time.time()
+
         for epoch in range(1, self.epochs + 1):
-            t_loss, t_acc = self.train_epoch(model, train_loader, criterion, optimizer)
+            t_loss, t_acc = self.train_epoch(model, train_loader, criterion, optimizer, scaler=scaler)
+            current_lr = optimizer.param_groups[0]["lr"]
             scheduler.step()
             v_loss, v_acc = self.validate_epoch(model, val_loader, criterion)
+
+            epoch_record = {
+                "epoch": epoch,
+                "train_loss": round(t_loss, 4),
+                "train_acc": round(t_acc, 4),
+                "val_loss": round(v_loss, 4),
+                "val_acc": round(v_acc, 4),
+                "lr": current_lr,
+            }
+            history.append(epoch_record)
 
             print(
                 f"Epoch [{epoch:02d}/{self.epochs:02d}] "
                 f"Train Loss: {t_loss:.4f} | Train Acc: {t_acc*100:.2f}% | "
-                f"Val Loss: {v_loss:.4f} | Val Acc: {v_acc*100:.2f}%",
+                f"Val Loss: {v_loss:.4f} | Val Acc: {v_acc*100:.2f}% | LR: {current_lr:.6f}",
                 flush=True,
             )
 
-            if v_acc >= best_acc:
+            if v_acc > best_acc or (abs(v_acc - best_acc) < 1e-4 and v_loss < best_loss):
                 best_acc = v_acc
+                best_loss = v_loss
+                patience_counter = 0
                 torch.save(model.state_dict(), pt_path)
                 print(f"  ⭐ Best checkpoint saved (Val Acc: {best_acc*100:.2f}%)", flush=True)
+            else:
+                patience_counter += 1
+                if patience_counter >= self.patience:
+                    print(f"🛑 Early stopping triggered after {epoch} epochs (no improvement for {self.patience} epochs).")
+                    break
 
         elapsed = time.time() - start_time
         print(f"\n🎉 Training finished in {elapsed/60:.2f} min! Best Val Acc: {best_acc*100:.2f}%", flush=True)
+
+        # Save training metrics to JSON
+        with open(metrics_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "model_type": self.model_type,
+                "epochs_completed": len(history),
+                "best_val_acc": round(best_acc, 4),
+                "total_time_seconds": round(elapsed, 2),
+                "history": history,
+            }, f, indent=2)
+        print(f"📊 Training metrics saved to '{metrics_path}'")
 
         # Export ONNX INT8
         print("\n📦 Exporting to ONNX INT8...", flush=True)
@@ -212,26 +297,3 @@ class ModelTrainer:
             print(f"⚠️ ONNX export warning: {err}", flush=True)
 
         return pt_path
-
-
-def _stratified_split(
-    targets: List[int],
-    val_ratio: float = 0.2,
-    seed: int = 42,
-) -> Tuple[List[int], List[int]]:
-    """Split indices per class so train and val keep the same class mix."""
-    rng = torch.Generator().manual_seed(seed)
-    by_class: dict[int, List[int]] = defaultdict(list)
-    for index, label in enumerate(targets):
-        by_class[int(label)].append(index)
-
-    train_indices: List[int] = []
-    val_indices: List[int] = []
-    for indices in by_class.values():
-        perm = torch.randperm(len(indices), generator=rng).tolist()
-        shuffled = [indices[i] for i in perm]
-        n_val = max(1, int(round(len(shuffled) * val_ratio))) if len(shuffled) > 1 else 0
-        val_indices.extend(shuffled[:n_val])
-        train_indices.extend(shuffled[n_val:])
-    return train_indices, val_indices
-
