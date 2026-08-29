@@ -1,0 +1,25 @@
+# ──────────────────────────────────────────────
+# OpticBin — Pinned Python Package Dependencies
+# ──────────────────────────────────────────────
+# Core Deep Learning
+torch>=2.0.0
+torchvision>=0.15.0
+timm>=0.9.0
+
+# ONNX Inference & Quantization
+onnx>=1.14.0
+onnxruntime>=1.16.0
+onnxscript>=0.1.0
+
+# Explainability (XAI)
+grad-cam>=1.5.0
+
+# Computer Vision
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# Dashboard UI (fragments used for non-blocking webcam)
+streamlit>=1.33.0
+
+# Utilities
+Pillow>=10.0.0

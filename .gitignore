@@ -1,0 +1,45 @@
+# ──────────────────────────────────────────────
+# OpticBin — .gitignore
+# ──────────────────────────────────────────────
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Model Weights (large binary files)
+models/weights/*.pt
+models/weights/*.onnx
+models/weights/*.onnx.data
+!models/weights/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Datasets & Downloads
+dataset/
+dataset_temp/
+*.zip
+
+# Streamlit
+.streamlit/
+
+# Logs
+*.log
