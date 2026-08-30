@@ -21,11 +21,14 @@ from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 
 from config.settings import (
+    DEFAULT_SEED,
+    DEFAULT_VAL_RATIO,
     DEVICE,
     IMAGENET_MEAN,
     IMAGENET_STD,
     INPUT_SIZE,
     NUM_CLASSES,
+    RESULTS_DIR,
     WEIGHTS_DIR,
 )
 from models.export_onnx import export_to_onnx_int8
@@ -71,6 +74,7 @@ class ModelTrainer:
         device: str = DEVICE,
         patience: int = 10,
         use_randaugment: bool = False,
+        seed: int = DEFAULT_SEED,
     ):
         self.model_type = model_type
         self.data_dir = data_dir
@@ -80,6 +84,7 @@ class ModelTrainer:
         self.device = torch.device(device)
         self.patience = patience
         self.use_randaugment = use_randaugment
+        self.seed = seed
 
         train_transform_list = [
             transforms.Resize(INPUT_SIZE, interpolation=transforms.InterpolationMode.BILINEAR),
@@ -114,7 +119,7 @@ class ModelTrainer:
         val_dataset = datasets.ImageFolder(root=self.data_dir, transform=self.val_transforms)
 
         targets = [label for _, label in train_dataset.samples]
-        train_indices, val_indices = _stratified_split(targets, val_ratio=0.2, seed=42)
+        train_indices, val_indices = _stratified_split(targets, val_ratio=DEFAULT_VAL_RATIO, seed=self.seed)
 
         train_ds = Subset(train_dataset, train_indices)
         val_ds = Subset(val_dataset, val_indices)

@@ -1,0 +1,49 @@
+# OpticBin Configuration File
+# ===========================
+# Modify this file to tune hyperparameters and runtime settings.
+
+# Training Configuration
+training:
+  epochs: 15
+  batch_size: 32
+  learning_rate: 0.001
+  patience: 10
+  seed: 42
+  use_randaugment: false
+  val_ratio: 0.2
+
+# Model Configuration
+model:
+  default: "efficientnetv2_s"
+  num_classes: 5
+  input_size: [224, 224]
+
+# Inference Configuration
+inference:
+  default_framework: "pytorch"  # "pytorch" or "onnx"
+  latency_target_ms: 100
+  max_ram_gb: 2.5
+
+# XAI Configuration
+xai:
+  cam_opacity: 0.5
+
+# Paths
+paths:
+  dataset_dir: "dataset"
+  weights_dir: "models/weights"
+  onnx_export_dir: "models/weights"
+  results_dir: "results"
+
+# ImageNet Normalization
+normalization:
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+
+# Class Labels (5-class waste taxonomy)
+class_labels:
+  - "cardboard"
+  - "glass"
+  - "metal"
+  - "paper"
+  - "plastic"

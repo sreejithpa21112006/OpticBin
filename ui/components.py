@@ -6,6 +6,8 @@ import streamlit as st
 
 from config.settings import (
     CLASS_LABELS,
+    DEFAULT_FRAMEWORK,
+    DEFAULT_MODEL,
     INPUT_SIZE,
     LATENCY_TARGET_MS,
     NUM_CLASSES,
@@ -28,20 +30,26 @@ ONNX_FRAMEWORK = "ONNX Runtime (Fast)"
 
 def render_sidebar() -> tuple[str, str, str]:
     """Render model, framework, and input controls. Returns `(model_choice, framework, input_mode)`."""
+    model_keys = list(SUPPORTED_MODELS.keys())
+    default_model_index = model_keys.index(DEFAULT_MODEL) if DEFAULT_MODEL in model_keys else 0
+    
+    framework_options = [PYTORCH_FRAMEWORK, ONNX_FRAMEWORK]
+    default_framework_index = 0 if DEFAULT_FRAMEWORK == "pytorch" else 1
+    
     with st.sidebar:
         st.header("Workspace Controls")
         model_choice = st.selectbox(
             "Backbone Architecture",
-            options=list(SUPPORTED_MODELS.keys()),
-            index=0,
+            options=model_keys,
+            index=default_model_index,
             help="Switch between CNN (EfficientNetV2) and ViT (MobileViT) architectures.",
         )
         st.caption(SUPPORTED_MODELS[model_choice]["description"])
 
         framework = st.radio(
             "Inference Engine",
-            [PYTORCH_FRAMEWORK, ONNX_FRAMEWORK],
-            index=0,
+            framework_options,
+            index=default_framework_index,
             help="PyTorch for Grad-CAM heatmaps or ONNX Runtime for minimum latency.",
         )
 
@@ -113,7 +121,7 @@ def render_heatmap(heatmap, engine: object, caption: str | None = None) -> None:
             "ONNX Runtime classifies faster but does not produce a heatmap."
         )
         return
-    st.image(heatmap, caption=caption, width="stretch")
+    st.image(heatmap, caption=caption, use_container_width=True)
 
 
 def render_empty_state(title: str, body: str) -> None:

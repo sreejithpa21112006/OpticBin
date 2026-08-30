@@ -41,5 +41,9 @@ dataset_temp/
 # Streamlit
 .streamlit/
 
+# Results (evaluation metrics)
+results/*.json
+!results/.gitkeep
+
 # Logs
 *.log

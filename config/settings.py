@@ -2,12 +2,38 @@
 OpticBin — Central Configuration
 =================================
 Class labels, input resolutions, device configs, and runtime parameters.
+Supports external YAML config file for hyperparameter tuning.
 """
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+from typing import Any, Dict
+
 import torch
+import yaml
+
 from config.schema import AppConfig, ModelSpec, WasteMetadata
+
+# ──────────────────────────────────────────────
+# External Config File Loading
+# ──────────────────────────────────────────────
+_CONFIG_FILE = Path(__file__).parent.parent / "config.yaml"
+_external_config: Dict[str, Any] = {}
+
+if _CONFIG_FILE.exists():
+    try:
+        with open(_CONFIG_FILE, "r", encoding="utf-8") as f:
+            _external_config = yaml.safe_load(f) or {}
+    except (yaml.YAMLError, OSError):
+        _external_config = {}
+
+
+def get_config_value(section: str, key: str, default: Any = None) -> Any:
+    """Retrieve a value from external config with fallback to default."""
+    return _external_config.get(section, {}).get(key, default)
+
 
 # ──────────────────────────────────────────────
 # Device Configuration
@@ -125,26 +151,44 @@ WASTE_METADATA: dict[str, dict] = {
 # ──────────────────────────────────────────────
 # Input / Preprocessing
 # ──────────────────────────────────────────────
-INPUT_SIZE = (224, 224)           # H × W expected by both backbones
-IMAGENET_MEAN = [0.485, 0.456, 0.406]
-IMAGENET_STD = [0.229, 0.224, 0.225]
+_input_size = get_config_value("model", "input_size", [224, 224])
+INPUT_SIZE = tuple(_input_size) if isinstance(_input_size, list) else (224, 224)
+IMAGENET_MEAN = get_config_value("normalization", "mean", [0.485, 0.456, 0.406])
+IMAGENET_STD = get_config_value("normalization", "std", [0.229, 0.224, 0.225])
 
 # ──────────────────────────────────────────────
 # XAI (Explainability) Settings
 # ──────────────────────────────────────────────
-CAM_OPACITY = 0.5                 # Heatmap overlay blending alpha
+CAM_OPACITY = get_config_value("xai", "cam_opacity", 0.5)
 
 # ──────────────────────────────────────────────
 # Inference Performance
 # ──────────────────────────────────────────────
-LATENCY_TARGET_MS = 100           # ≤ 100 ms end-to-end budget
-MAX_RAM_GB = 2.5                  # Hard ceiling during webcam streaming
+LATENCY_TARGET_MS = get_config_value("inference", "latency_target_ms", 100)
+MAX_RAM_GB = get_config_value("inference", "max_ram_gb", 2.5)
 
 # ──────────────────────────────────────────────
 # Paths
 # ──────────────────────────────────────────────
-WEIGHTS_DIR = "models/weights"
-ONNX_EXPORT_DIR = "models/weights"
+WEIGHTS_DIR = get_config_value("paths", "weights_dir", "models/weights")
+ONNX_EXPORT_DIR = get_config_value("paths", "onnx_export_dir", "models/weights")
+DATASET_DIR = get_config_value("paths", "dataset_dir", "dataset")
+RESULTS_DIR = get_config_value("paths", "results_dir", "results")
+
+# ──────────────────────────────────────────────
+# Training Defaults (from config.yaml)
+# ──────────────────────────────────────────────
+DEFAULT_EPOCHS = get_config_value("training", "epochs", 15)
+DEFAULT_BATCH_SIZE = get_config_value("training", "batch_size", 32)
+DEFAULT_LEARNING_RATE = get_config_value("training", "learning_rate", 0.001)
+DEFAULT_PATIENCE = get_config_value("training", "patience", 10)
+DEFAULT_SEED = get_config_value("training", "seed", 42)
+DEFAULT_VAL_RATIO = get_config_value("training", "val_ratio", 0.2)
+
+# ──────────────────────────────────────────────
+# Inference Defaults
+# ──────────────────────────────────────────────
+DEFAULT_FRAMEWORK = get_config_value("inference", "default_framework", "pytorch")
 
 
 def is_recyclable(label: str) -> bool:
