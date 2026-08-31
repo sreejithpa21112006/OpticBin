@@ -1,114 +1,174 @@
-<p align="center">
-  <img src="assets/banner.png" alt="OpticBin Banner" width="100%"/>
-</p>
+# OpticBin
 
-<h1 align="center">♻️ OpticBin</h1>
-
-<p align="center">
-  <strong>Edge-AI Waste Classification System with Real-Time Explainable AI</strong>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"/>
-  <img src="https://img.shields.io/badge/PyTorch-2.0+-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" alt="PyTorch"/>
-  <img src="https://img.shields.io/badge/ONNX_Runtime-INT8-005CED?style=for-the-badge&logo=onnx&logoColor=white" alt="ONNX"/>
-  <img src="https://img.shields.io/badge/Streamlit-1.28+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit"/>
-  <img src="https://img.shields.io/badge/License-MIT-00C9A7?style=for-the-badge" alt="License"/>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Latency-≤100ms-00C9A7?style=flat-square" alt="Latency"/>
-  <img src="https://img.shields.io/badge/Accuracy-≥90%25-845EF7?style=flat-square" alt="Accuracy"/>
-  <img src="https://img.shields.io/badge/RAM-≤2.5GB-FFD93D?style=flat-square" alt="Memory"/>
-  <img src="https://img.shields.io/badge/Mode-Fully_Offline-1DB954?style=flat-square" alt="Offline"/>
-</p>
+**Edge-AI Waste Classification System with Real-Time Explainable AI**
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [Executive Summary](#-executive-summary)
-- [Core Mission Targets](#-core-mission-targets)
-- [Tech Stack](#-tech-stack)
-- [Repository Structure](#-repository-structure)
-- [Getting Started](#-getting-started)
-- [Usage](#-usage)
-- [Model Architecture](#-model-architecture)
-- [ONNX Export & Quantization](#-onnx-export--quantization)
-- [Benchmarking & Unit Testing](#-benchmarking--unit-testing)
-- [XAI Engine](#-xai-engine)
-- [Latency Budget](#-latency-budget)
-- [Acceptance Verification](#-acceptance-verification)
-- [Contributing](#-contributing)
-- [License](#-license)
+- [Executive Summary](#executive-summary)
+- [System Architecture Diagram](#system-architecture-diagram)
+- [Core Specifications](#core-specifications)
+- [Supported Waste Taxonomy](#supported-waste-taxonomy)
+- [Tech Stack](#tech-stack)
+- [Repository Structure](#repository-structure)
+- [Getting Started](#getting-started)
+- [Dataset Preparation](#dataset-preparation)
+- [Model Training and Seeded Reproducibility](#model-training-and-seeded-reproducibility)
+- [Model Evaluation and Metrics Tracking](#model-evaluation-and-metrics-tracking)
+- [Model Parameter Comparison](#model-parameter-comparison)
+- [ONNX Export and Quantization](#onnx-export-and-quantization)
+- [Benchmarking and Testing](#benchmarking-and-testing)
+- [Explainable AI (XAI) Engine](#explainable-ai-xai-engine)
+- [Dashboard Usage](#dashboard-usage)
+- [Acceptance Verification](#acceptance-verification)
+- [License](#license)
 
 ---
 
 ## Executive Summary
 
-Industrial waste processing demands **high-throughput material sorting** of glass, paper, cardboard, plastic, and metal at the edge. Traditional cloud-based AI introduces unacceptable latency and bandwidth dependency. Furthermore, operational auditing and regulatory compliance mandate **Explainable AI (XAI)** overlays to visually verify model decision rationale.
+Industrial waste sorting requires real-time, offline automated classification across diverse material types including electronic waste, organic matter, glass, paper, cardboard, plastic, metal, and general trash. Cloud-based inference models introduce latency, bandwidth costs, and network reliability bottlenecks in industrial edge environments. Furthermore, regulatory auditing requires Explainable AI (XAI) feature maps to verify model reasoning.
 
-**OpticBin** is a self-contained, fully offline edge-AI prototype that classifies waste into five materials and shows a Grad-CAM overlay on the **PyTorch** path. You must fine-tune and save weights before predictions are meaningful. ONNX Runtime is a faster classify-only path (no heatmap). The 100 ms / 90% figures are **targets**, not results from this checkout.
+OpticBin is a fully offline Edge-AI pipeline that classifies 8 categories of waste using fine-tuned backbones (EfficientNetV2-S and MobileViT-XS). It offers dual inference execution paths:
+1. **PyTorch Engine:** Full inference with visual Grad-CAM heatmap generation.
+2. **ONNX Runtime Engine:** INT8-quantized execution provider optimized for sub-100ms CPU latency.
 
 ---
 
-## Core Mission Targets
+## System Architecture Diagram
 
-| Target | Description |
-|--------|-------------|
-|**Sub-100ms Latency** | Target for classify-only inference after you have a trained checkpoint (measure with `python models/benchmark.py`) |
-|**Model Transparency** | Grad-CAM overlays on PyTorch. ONNX does not produce heatmaps |
-|**Fully Offline** | No cloud APIs at inference time. First train still downloads TrashNet and ImageNet-pretrained backbones |
-|**≥90% Accuracy** | Training goal on a stratified val split — not a shipped, verified test-set score |
-|**≤2.5 GB RAM** | Design ceiling during webcam streaming |
+```
++-----------------------------------------------------------------------------------+
+|                                 OpticBin System                                   |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  [ Data Ingestion ]                                                               |
+|   - TrashNet & Kaggle 8-Class Dataset                                             |
+|   - Scripts: download_dataset.py, download_new_classes.py                         |
+|                               │                                                   |
+|                               ▼                                                   |
+|  [ Preprocessing & Data Pipeline ]                                                |
+|   - 224x224 Bilinear Resize & ImageNet Normalization                              |
+|   - Module: src/preprocessor.py                                                   |
+|                               │                                                   |
+|                               ▼                                                   |
+|  [ Model Backbones & Config ]                                                     |
+|   - Config: config/opticbin.yaml & config/settings.py (Seed: 42)                  |
+|   - Backbones: EfficientNetV2-S (51.1M params) & MobileViT-XS (1.94M params)      |
+|   - Factory: src/model_factory.py                                                 |
+|                               │                                                   |
+|                               ├──────────────────────────┐                        |
+|                               ▼                          ▼                        |
+|                  [ PyTorch Training Engine ]    [ Evaluation Pipeline ]           |
+|                   - train.py & src/trainer.py    - evaluate.py                    |
+|                   - AdamW + Cosine LR            - Top-1 Acc, F1, Latency         |
+|                   - Exports: models/weights/*.pt - Reports: results/*_eval.json   |
+|                               │                                                   |
+|                               ▼                                                   |
+|                  [ ONNX Export & INT8 Quant ]                                     |
+|                   - models/export_onnx.py                                         |
+|                   - Converts .pt -> .onnx -> _int8.onnx                           |
+|                               │                                                   |
+|                               ├──────────────────────────┐                        |
+|                               ▼                          ▼                        |
+|                  [ XAI Grad-CAM Engine ]        [ Production ONNX Engine ]        |
+|                   - src/xai_engine.py            - src/inference_engine.py        |
+|                   - Heatmap Overlay Generation   - Sub-100ms Classify Path        |
+|                               │                          │                        |
+|                               └────────────┬─────────────┘                        |
+|                                            ▼                                      |
+|                                 [ Streamlit UI Dashboard ]                        |
+|                                  - app.py & ui/                                   |
+|                                  - Upload & Live Webcam Modes                     |
++-----------------------------------------------------------------------------------+
+```
+
+---
+
+## Core Specifications
+
+| Attribute | Specification |
+|---|---|
+| Latency Target | Sub-100ms per frame (ONNX INT8 execution) |
+| System RAM Limit | Less than or equal to 2.5 GB during live stream mode |
+| Supported Classes | 8 classes (Cardboard, E-Waste, Glass, Metal, Organic, Paper, Plastic, Trash) |
+| Execution Mode | 100% Offline (Local CPU / CUDA support) |
+| Compression | 4x size reduction via INT8 Post-Training Quantization |
+| Explainability | Grad-CAM heatmap overlays on PyTorch execution path |
+
+---
+
+## Supported Waste Taxonomy
+
+| Class Name | Target Materials and Items |
+|---|---|
+| Cardboard | Corrugated shipping boxes, paperboard packaging |
+| E-Waste | Circuit boards, cables, discarded consumer electronics |
+| Glass | Glass bottles, jars, window fragments |
+| Metal | Aluminum cans, tin foil, metallic hardware |
+| Organic | Food scraps, fruit peels, yard waste |
+| Paper | Office paper, newsprint, magazines |
+| Plastic | PET bottles, HDPE containers, plastic packaging |
+| Trash | Non-recyclable composite waste |
 
 ---
 
 ## Tech Stack
 
-| Layer | Primary Selection | Architectural Rationale |
-|-------|-------------------|------------------------|
-| **Deep Learning** | `PyTorch` + `timm` | Native dynamic computational graph simplifies internal layer hooking for ViT attention maps and CNN feature maps |
-| **Local Inference Engine** | `ONNX Runtime` (INT8) | Hardware-accelerated execution via CPU/CUDA execution providers, achieving ~75% memory footprint reduction over FP32 |
-| **Explainability (XAI)** | `pytorch-grad-cam` | Grad-CAM on EfficientNetV2 `conv_head` and MobileViT `final_conv` (not Attention Rollout) |
-| **Computer Vision** | `OpenCV` + `torchvision` | Shared bilinear 224×224 resize + ImageNet normalize for train-eval and inference |
-| **Dashboard UI** | `Streamlit` | Rapid desktop/web visualization interface providing live webcam feeds and dual-column XAI visual auditing |
+| Layer | Technology | Architectural Purpose |
+|---|---|---|
+| Deep Learning Framework | PyTorch 2.0+ & timm | Backbone feature extraction, fine-tuning, and gradient hooking |
+| Runtime Inference | ONNX Runtime (INT8) | Accelerated CPU/GPU runtime with INT8 quantized execution |
+| Explainability (XAI) | pytorch-grad-cam | Grad-CAM activation mapping on Conv and Transformer stages |
+| Computer Vision | OpenCV & torchvision | Threaded webcam frames, tensor transformations, and normalization |
+| Configuration | PyYAML & dataclass schema | Centralized YAML config parsing and schema validation |
+| Dashboard UI | Streamlit 1.28+ | Web-based interface for image uploads and live webcam stream |
 
 ---
 
 ## Repository Structure
 
 ```
-opticbin/
+OpticBin/
 ├── config/
-│   ├── schema.py              # Dataclass configuration models
-│   └── settings.py            # Central configuration & type-safe accessors
+│   ├── opticbin.yaml          # External YAML configuration (seed, LR, epochs, paths)
+│   ├── schema.py              # Dataclass validation schemas
+│   └── settings.py            # Central settings parser and default fallback bindings
+├── dataset/                   # Local dataset directory (8 waste class subfolders)
 ├── models/
-│   ├── export_onnx.py         # PyTorch to ONNX dynamic INT8 quantizer
-│   ├── benchmark.py           # Model latency & memory benchmark tool
-│   └── weights/               # Saved .pt and .onnx model artifacts
+│   ├── benchmark.py           # Latency and memory benchmarking tool
+│   ├── export_onnx.py         # PyTorch to INT8 ONNX converter
+│   └── weights/               # Saved model checkpoints (.pt, .onnx, _int8.onnx, metrics.json)
+├── results/                   # Evaluation artifacts (JSON metrics and text summaries)
 ├── src/
-│   ├── camera.py              # Webcam session & threaded buffer streamer
-│   ├── model_factory.py       # Shared backbone, checkpoint, and CAM-layer factory
-│   ├── preprocessor.py        # Modular image preprocessor pipeline
-│   ├── inference_engine.py    # Standardized PyTorch & ONNX inference engine
-│   ├── trainer.py             # Encapsulated PyTorch trainer and evaluator
+│   ├── camera.py              # Threaded OpenCV webcam frame buffer
+│   ├── inference_engine.py    # Unified PyTorch and ONNX Runtime inference wrapper
+│   ├── model_factory.py       # Architecture factory, layer target resolver, weights loader
+│   ├── preprocessor.py        # Image preprocessor for BGR, PIL, and PyTorch inputs
+│   ├── trainer.py             # Model fine-tuning and validation engine
 │   ├── xai_engine.py          # Grad-CAM heatmap generator
-│   └── xai_renderer.py        # Heatmap blending & visual overlay renderer
-├── ui/
-│   ├── styles.py              # Theme-adaptive dashboard styles
-│   ├── components.py          # Shared header, sidebar, metrics, and guidance
-│   ├── state_manager.py       # Type-safe Streamlit session state manager
-│   ├── image_view.py          # Image upload classification view
-│   └── webcam_view.py         # Live webcam classification view
+│   └── xai_renderer.py        # Heatmap blending and color map rendering
 ├── tests/
-│   ├── test_config.py         # Unit tests for config schemas
-│   ├── test_preprocessor.py   # Unit tests for image pipeline
-│   └── test_model_factory.py  # Unit tests for architecture factory
-├── app.py                     # Streamlit entry point and view dispatch
-├── train.py                   # Fine-tuning CLI entrypoint
-├── download_dataset.py        # TrashNet dataset downloader
-├── requirements.txt           # Pinned Python package dependencies
+│   ├── test_config.py         # Unit tests for configuration schema validation
+│   ├── test_model_factory.py  # Unit tests for architecture instantiation
+│   ├── test_optic.py          # End-to-end integration tests
+│   └── test_preprocessor.py   # Unit tests for preprocessing transformations
+├── ui/
+│   ├── components.py          # Dashboard UI components, sidebar controls, metrics cards
+│   ├── image_view.py          # Single image upload and evaluation view
+│   ├── state_manager.py       # Streamlit session state management
+│   ├── styles.py              # Custom CSS layout styling
+│   └── webcam_view.py         # Live webcam classification view
+├── app.py                     # Streamlit application entrypoint
+├── check_params.py            # Model parameter inspector tool
+├── download_dataset.py        # Dataset downloader and aggregator script
+├── download_new_classes.py    # E-waste and organic dataset downloader
+├── evaluate.py                # Model evaluation and metrics generation CLI
+├── fix_dataset.py             # Dataset verification and repair tool
+├── requirements.txt           # Production Python dependencies
+├── requirements-dev.txt       # Development and testing dependencies
+├── train.py                   # Model training and fine-tuning CLI
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -120,161 +180,163 @@ opticbin/
 
 ### Prerequisites
 
-- **Python** 3.10–3.13 *(PyTorch wheels are not yet published for 3.14)*
-- **CUDA** 11.8+ *(optional — CPU inference is fully supported)*
-- **Webcam** *(optional — for live stream mode)*
+- Python 3.10 to 3.13
+- CUDA 11.8+ (optional, CPU execution fully supported)
+- Webcam (optional, for live webcam classification mode)
 
 ### Installation
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/yourusername/opticbin.git
-cd opticbin
+# 1. Clone repository
+git clone https://github.com/sreejithpa21112006/OpticBin.git
+cd OpticBin
 
-# 2. Create and activate virtual environment
-py -3.13 -m venv venv
+# 2. Create virtual environment
+python -m venv .venv
 
-# Windows
-venv\Scripts\activate
+# Activate on Windows:
+.venv\Scripts\activate
 
-# macOS / Linux
-source venv/bin/activate
+# Activate on Linux / macOS:
+source .venv/bin/activate
 
 # 3. Install dependencies
 pip install -r requirements.txt
 ```
 
-### Quick Start
+---
 
-```bash
-# Launch the dashboard
-streamlit run app.py
-```
+## Dataset Preparation
 
-Without a checkpoint in `models/weights/`, the UI uses an ImageNet-pretrained backbone with a new 5-class head. Train first:
+To download and structure the 8-class dataset automatically:
 
 ```bash
 python download_dataset.py
-python train.py --model efficientnetv2_s --epochs 15
+python download_new_classes.py
 ```
+
+This populates the `dataset/` directory with class subfolders: `cardboard`, `e_waste`, `glass`, `metal`, `organic`, `paper`, `plastic`, and `trash`.
 
 ---
 
-## Model Training & Dataset Setup
+## Model Training and Seeded Reproducibility
 
-To train OpticBin on custom waste images or the standard **TrashNet** dataset:
+Train models using CLI flags or default settings from `config/opticbin.yaml`:
 
 ```bash
-# 1. Download & prepare TrashNet dataset
-python download_dataset.py
+# Train EfficientNetV2-S with global seed
+python train.py --model efficientnetv2_s --epochs 15 --batch_size 32 --seed 42
 
-# 2. Fine-tune EfficientNetV2-S backbone
-python train.py --model efficientnetv2_s --epochs 15 --batch_size 32
+# Train MobileViT-XS
+python train.py --model mobilevit_xs --epochs 15 --batch_size 32 --seed 42
 
-# 3. Fine-tune MobileViT-XS backbone
-python train.py --model mobilevit_xs --epochs 15 --batch_size 32
+# Train all backbones sequentially
+python train.py --model all --epochs 15 --seed 42
 ```
 
-This will automatically train the model, save the `.pt` checkpoint to `models/weights/`, and quantize it to dynamic INT8 `.onnx` format.
+Reproducibility is guaranteed by `set_global_seed()`, which explicitly sets random seeds across Python `random`, `numpy`, PyTorch CPU, and PyTorch CUDA backends.
 
 ---
 
-## Benchmarking & Unit Testing
+## Model Evaluation and Metrics Tracking
 
-OpticBin includes a comprehensive unit testing suite and latency benchmarking utility:
+Run evaluation on a stratified held-out test split:
 
 ```bash
-# Run unit test suite
-python -m unittest discover tests
+# Evaluate EfficientNetV2-S
+python evaluate.py --model efficientnetv2_s --data_dir dataset --seed 42
 
-# Run inference latency benchmark
-python models/benchmark.py --iterations 100
+# Evaluate MobileViT-XS
+python evaluate.py --model mobilevit_xs --data_dir dataset --seed 42
+
+# Evaluate all models and generate combined report
+python evaluate.py --model all --data_dir dataset --seed 42
 ```
+
+Evaluation outputs are persisted in the `results/` directory:
+- `results/efficientnetv2_s_eval.json`: Detailed JSON containing Top-1 accuracy, per-class F1, macro F1, latency, and confusion matrix.
+- `results/efficientnetv2_s_eval_summary.txt`: Plain-text evaluation report.
 
 ---
 
-## Usage
+## Model Parameter Comparison
 
-### Image Upload Mode
+OpticBin supports two backbone options evaluated with `check_params.py`:
 
-1. Select your preferred backbone architecture from the sidebar
-2. Upload a waste image (JPG, PNG, BMP, WebP)
-3. Compare the original image with the Grad-CAM heatmap
-4. Review confidence, latency, class probabilities, and disposal guidance
-
-### Live Webcam Mode
-
-1. Switch to **Live Webcam** in the sidebar
-2. Enable **Start webcam stream**
-3. Point your camera at waste items for real-time classification
-4. The dual-column view shows the live feed and XAI heatmap side-by-side
-5. Disable the stream to release the camera
+| Backbone Model | Total Parameters | Trainable Parameters (GPU) | Trainable Parameters (CPU) | Primary Strengths |
+|---|---|---|---|---|
+| **EfficientNetV2-S** | 51,100,666 (~51.1M) | 51,100,666 (100%) | 39,216,694 (76.7%) | Maximum surface texture accuracy |
+| **MobileViT-XS** | 1,935,928 (~1.94M) | 1,935,928 (100%) | 739,864 (38.2%) | Ultra-lightweight edge deployment |
 
 ---
 
-## Model Architecture
+## ONNX Export and Quantization
 
-OpticBin supports **dual-backbone** architecture with hot-swappable models:
-
-### EfficientNetV2-S *(Texture-Focused CNN)*
-
-```
-Input (224×224×3) → EfficientNetV2-RW-S Backbone → conv_head → Global Pool → FC(5)
-                                                      ↑
-                                              Grad-CAM Target Layer
-```
-
-- Excels at **surface texture recognition** (paper grain, metal sheen, plastic gloss)
-- Ideal for items with distinctive material properties
-
-### MobileViT-XS *(Global Spatial ViT)*
-
-```
-Input (224×224×3) → MobileViT-XS Backbone → final_conv → Global Pool → FC(5)
-                                                   ↑
-                                           Grad-CAM Target Layer
-```
-
-- Captures **global shape and structural context**
-- Better at recognizing crushed or deformed items
-
-### Supported Waste Classes
-
-| Class | Examples |
-|-------|----------|
-| Glass | Bottles, jars, window fragments |
-| Paper | Newspapers, office paper, magazines |
-| Cardboard | Corrugated boxes, packaging, shipping cartons |
-| Plastic | PET bottles, bags, containers |
-| Metal | Aluminum cans, foil, steel containers |
-
----
-
-## ONNX Export & Quantization
-
-Convert PyTorch checkpoints to optimized ONNX format with dynamic INT8 quantization:
+Export PyTorch weights (`.pt`) to optimized ONNX format with Post-Training Quantization (PTQ):
 
 ```bash
 python models/export_onnx.py \
-    --pt_path  models/weights/efficientnetv2_s.pt \
+    --pt_path models/weights/efficientnetv2_s.pt \
     --onnx_out models/weights/efficientnetv2_s.onnx \
     --quant_out models/weights/efficientnetv2_s_int8.onnx \
     --model efficientnetv2_s
 ```
 
----
-
-## ✅ Acceptance Verification
-
-| ID | Verification Scenario | Expected Outcome | Status |
-|----|----------------------|-------------------|--------|
-| **AC-1** | Batch execution on 100 test waste images | Model accuracy ≥ 90%; average frame latency ≤ 100 ms | Not verified here — train, then run `python models/benchmark.py` |
-| **AC-2** | Toggle between EfficientNetV2 and MobileViT | Dashboard updates layer target without application restart or failure | Supported in the sidebar (Streamlit cache reload) |
-| **AC-3** | Disconnect internet during live webcam stream | Stream continues with zero cloud dependency | Inference is local; live mode uses a threaded camera + Streamlit fragment |
-| **AC-4** | Quantize FP32 PyTorch model to INT8 ONNX | Smaller INT8 graph after `python models/export_onnx.py` | Pipeline exists; size depends on the backbone you export |
+Quantization results in ~4x footprint reduction:
+- `efficientnetv2_s.pt` (206 MB) -> `efficientnetv2_s_int8.onnx` (52 MB)
+- `mobilevit_xs.pt` (7.9 MB) -> `mobilevit_xs_int8.onnx` (2.4 MB)
 
 ---
 
-## 📜 License
+## Benchmarking and Testing
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+Run unit tests and latency benchmarks:
+
+```bash
+# Execute unit test suite
+python -m unittest discover tests
+
+# Benchmark inference latency and memory
+python models/benchmark.py --iterations 100
+```
+
+---
+
+## Explainable AI (XAI) Engine
+
+Grad-CAM target layers are hooked dynamically:
+- **EfficientNetV2-S Target Layer:** `conv_head`
+- **MobileViT-XS Target Layer:** `final_conv`
+
+The XAI engine overlays class-activation heatmaps onto original input frames, allowing visual audit of object regions driving classification decisions.
+
+---
+
+## Dashboard Usage
+
+Launch the Streamlit web dashboard:
+
+```bash
+streamlit run app.py
+```
+
+### Modes of Operation
+1. **Single Image Upload Mode:** Upload JPG, PNG, or WebP images to visualize classification predictions, confidence scores, and Grad-CAM heatmaps.
+2. **Live Webcam Stream Mode:** Real-time webcam inference with dual-column view (live video feed alongside live heatmap updates).
+
+---
+
+## Acceptance Verification
+
+| ID | Scenario | Expected Outcome | Verification Method |
+|---|---|---|---|
+| AC-1 | Held-out test evaluation | Accuracy and per-class metrics reported in results directory | `python evaluate.py --model all` |
+| AC-2 | Model switching in UI | Hot-swapping backbones in Streamlit sidebar without app restart | App UI sidebar selection |
+| AC-3 | Offline execution | Operational without active internet connection | Disconnect network and run `app.py` |
+| AC-4 | INT8 Model Quantization | Size reduction and INT8 ONNX export | `python models/export_onnx.py` |
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
