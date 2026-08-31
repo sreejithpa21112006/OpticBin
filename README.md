@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.png" alt="OpticBin Banner" width="100%"/>
+</p>
+
 # OpticBin
 
 **Edge-AI Waste Classification System with Real-Time Explainable AI**
