@@ -54,7 +54,7 @@ def render_image_view(engine: Any) -> None:
     with media_col:
         original_tab, heatmap_tab = st.tabs(["Original Image", "Grad-CAM Heatmap"])
         with original_tab:
-            st.image(image, use_container_width=True)
+            st.image(image, width="stretch")
         with heatmap_tab:
             render_heatmap(result.get("heatmap_overlay"), engine)
 

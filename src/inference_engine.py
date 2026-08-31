@@ -186,21 +186,3 @@ class PyTorchInferenceEngine(BaseInferenceEngine):
             probabilities=probs,
             latency_ms=round(latency_ms, 2),
         )
-
-    def explain(
-        self,
-        input_tensor_or_array: torch.Tensor | np.ndarray,
-        rgb_float: np.ndarray,
-    ) -> dict:
-        """PyTorch prediction. Grad-CAM requires RecyclingXAIEngine; heatmap_overlay is None."""
-        result = self.predict(input_tensor_or_array).to_dict()
-        result["heatmap_overlay"] = None
-        result["gradcam_available"] = False
-        return result
-
-    def predict_and_explain(
-        self,
-        input_tensor_or_array: torch.Tensor | np.ndarray,
-        rgb_float: np.ndarray,
-    ) -> dict:
-        return self.explain(input_tensor_or_array, rgb_float)

@@ -9,13 +9,12 @@ from __future__ import annotations
 
 import streamlit as st
 
-from config.settings import DEFAULT_FRAMEWORK, DEFAULT_MODEL
+from config.settings import DEFAULT_MODEL, SUPPORTED_MODELS
 from src.inference_engine import ONNXInferenceEngine, resolve_onnx_weights_path
 from src.model_factory import resolve_weights_path
 from src.xai_engine import RecyclingXAIEngine
 from ui.components import (
     ONNX_FRAMEWORK,
-    PYTORCH_FRAMEWORK,
     render_engine_status,
     render_header,
     render_sidebar,
@@ -23,8 +22,6 @@ from ui.components import (
 from ui.image_view import render_image_view
 from ui.styles import IMAGE_MODE, apply_styles
 from ui.webcam_view import render_webcam_view
-
-DEFAULT_UI_FRAMEWORK = PYTORCH_FRAMEWORK if DEFAULT_FRAMEWORK == "pytorch" else ONNX_FRAMEWORK
 
 st.set_page_config(
     page_title="OpticBin — Edge-AI Waste Classifier",
@@ -35,7 +32,7 @@ st.set_page_config(
 
 
 @st.cache_resource(show_spinner=True)
-def load_engine(model_type: str, framework: str = "PyTorch + Grad-CAM"):
+def load_engine(model_type: str = DEFAULT_MODEL, framework: str = "PyTorch + Grad-CAM"):
     """Load or retrieve cached engine for the active backbone architecture and framework."""
     if ONNX_FRAMEWORK in framework:
         onnx_path = resolve_onnx_weights_path(model_type)

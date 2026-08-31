@@ -83,7 +83,11 @@ def load_checkpoint(
     weights_path: str | Path,
     map_location: str | torch.device = "cpu",
 ) -> nn.Module:
-    """Load a state_dict or full serialized model into `model`."""
+    """Load a state_dict or full serialized model into `model`.
+
+    Uses strict=False so timm variant differences produce a warning
+    instead of crashing the app with 'Unexpected key(s)' errors.
+    """
     checkpoint: Any = _torch_load(weights_path, map_location)
 
     if isinstance(checkpoint, nn.Module):
@@ -93,13 +97,25 @@ def load_checkpoint(
         state_dict = checkpoint.get("state_dict", checkpoint)
         if any(k.startswith("module.") for k in state_dict.keys()):
             state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
-        model.load_state_dict(state_dict)
+
+        result = model.load_state_dict(state_dict, strict=False)
+        if result.missing_keys:
+            print(
+                f"[load_checkpoint] WARNING: {len(result.missing_keys)} keys missing "
+                f"from checkpoint — those layers use ImageNet init."
+            )
+        if result.unexpected_keys:
+            print(
+                f"[load_checkpoint] INFO: {len(result.unexpected_keys)} extra keys in "
+                f"checkpoint ignored (saved from a larger/different variant)."
+            )
         return model
 
     raise TypeError(
         f"Unsupported checkpoint type {type(checkpoint)!r} in '{weights_path}'. "
         "Expected a state_dict or a full nn.Module."
     )
+
 
 
 def create_model_from_checkpoint(

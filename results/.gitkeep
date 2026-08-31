@@ -1,0 +1,4 @@
+# Evaluation outputs are generated here by evaluate.py
+# JSON metric files and text summaries will be placed in this directory.
+# The actual result files (*.json, *.txt) are git-ignored to keep the repo clean;
+# this placeholder ensures the directory exists in the repository.

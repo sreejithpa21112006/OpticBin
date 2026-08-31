@@ -2,38 +2,37 @@
 OpticBin — Central Configuration
 =================================
 Class labels, input resolutions, device configs, and runtime parameters.
-Supports external YAML config file for hyperparameter tuning.
+YAML overrides are loaded from config/opticbin.yaml when available.
 """
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import torch
-import yaml
-
 from config.schema import AppConfig, ModelSpec, WasteMetadata
 
 # ──────────────────────────────────────────────
-# External Config File Loading
+# YAML Config Loader
 # ──────────────────────────────────────────────
-_CONFIG_FILE = Path(__file__).parent.parent / "config.yaml"
-_external_config: Dict[str, Any] = {}
+_YAML_CONFIG_PATH = Path(__file__).resolve().parent / "opticbin.yaml"
 
-if _CONFIG_FILE.exists():
+
+def load_yaml_config() -> dict[str, Any]:
+    """Load opticbin.yaml config. Returns empty dict if unavailable."""
+    if not _YAML_CONFIG_PATH.exists():
+        return {}
     try:
-        with open(_CONFIG_FILE, "r", encoding="utf-8") as f:
-            _external_config = yaml.safe_load(f) or {}
-    except (yaml.YAMLError, OSError):
-        _external_config = {}
+        import yaml  # PyYAML is optional; falls back to hardcoded defaults
+        with open(_YAML_CONFIG_PATH, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    except Exception:
+        return {}
 
 
-def get_config_value(section: str, key: str, default: Any = None) -> Any:
-    """Retrieve a value from external config with fallback to default."""
-    return _external_config.get(section, {}).get(key, default)
-
+_CFG = load_yaml_config()
 
 # ──────────────────────────────────────────────
 # Device Configuration
@@ -45,8 +44,8 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # ──────────────────────────────────────────────
 SUPPORTED_MODELS: dict[str, dict[str, str]] = {
     "efficientnetv2_s": {
-        "timm_name": "efficientnetv2_rw_s",
-        "description": "Texture-focused CNN (EfficientNetV2-RW-S) — strong on surface material features",
+        "timm_name": "efficientnetv2_rw_m",   # saved .pt is the Medium variant (2152-ch head)
+        "description": "Texture-focused CNN (EfficientNetV2-RW-M) — strong on surface material features",
         "cam_target": "conv_head",
     },
     "mobilevit_xs": {
@@ -59,14 +58,17 @@ SUPPORTED_MODELS: dict[str, dict[str, str]] = {
 DEFAULT_MODEL = "efficientnetv2_s"
 
 # ──────────────────────────────────────────────
-# Class Labels  (5-class unified waste taxonomy)
+# Class Labels  (8-class extended waste taxonomy)
 # ──────────────────────────────────────────────
 CLASS_LABELS = [
     "cardboard",
+    "e_waste",
     "glass",
     "metal",
+    "organic",
     "paper",
     "plastic",
+    "trash",
 ]
 
 NUM_CLASSES = len(CLASS_LABELS)
@@ -136,59 +138,85 @@ WASTE_METADATA: dict[str, dict] = {
         "biodegradable": False,
         "category": "Non-Biodegradable",
         "recyclable": True,
-        "decomposition": "50–500 years (aluminum: 200 yrs, steel: 50 yrs)",
+        "decomposition": "50-500 years (aluminum: 200 yrs, steel: 50 yrs)",
         "disposal": "Recycling Bin (Metal)",
         "color": "#8B5CF6",
         "tips": [
-            "Rinse cans — labels can stay on (they burn off during recycling)",
+            "Rinse cans -- labels can stay on (they burn off during recycling)",
             "Aluminum cans are the most valuable recyclable material",
             "Recycling 1 aluminum can saves enough energy to run a TV for 3 hours",
         ],
-        "environmental_impact": "Medium — mining is destructive but metals are infinitely recyclable with no quality loss.",
+        "environmental_impact": "Medium -- mining is destructive but metals are infinitely recyclable with no quality loss.",
+    },
+    "e_waste": {
+        "biodegradable": False,
+        "category": "Electronic Waste",
+        "recyclable": "Specialist only",
+        "decomposition": "Hundreds to thousands of years",
+        "disposal": "E-Waste Collection Centre",
+        "color": "#10B981",
+        "tips": [
+            "NEVER put electronics in regular bins -- they contain toxic metals (lead, mercury)",
+            "Take to an authorised e-waste recycling centre or manufacturer take-back programme",
+            "Remove batteries before disposal -- they are separate hazardous waste",
+            "Data-wipe devices before recycling for privacy",
+        ],
+        "environmental_impact": "Very High -- e-waste leaches lead, cadmium, and mercury into soil and water. Only ~20% is formally recycled globally.",
+    },
+    "organic": {
+        "biodegradable": True,
+        "category": "Biodegradable",
+        "recyclable": "Via composting",
+        "decomposition": "Days to months",
+        "disposal": "Compost Bin / Green Bin",
+        "color": "#84CC16",
+        "tips": [
+            "Compost fruit peels, vegetable scraps, coffee grounds, and eggshells",
+            "Avoid composting meat, dairy, or oily food -- attracts pests",
+            "Home composting reduces landfill methane emissions significantly",
+        ],
+        "environmental_impact": "Low if composted -- organic matter in landfills produces methane, a potent greenhouse gas. Compost returns nutrients to soil.",
+    },
+    "trash": {
+        "biodegradable": False,
+        "category": "General Waste",
+        "recyclable": False,
+        "decomposition": "50-1000+ years depending on material",
+        "disposal": "General Waste Bin (Landfill)",
+        "color": "#6B7280",
+        "tips": [
+            "Reduce single-use items to minimise general waste",
+            "Check if any component can be separated and recycled before binning",
+            "Soiled or composite materials often cannot be recycled",
+        ],
+        "environmental_impact": "High -- general waste ends up in landfill or incineration. Reducing consumption is the most effective intervention.",
     },
 }
 
 # ──────────────────────────────────────────────
 # Input / Preprocessing
 # ──────────────────────────────────────────────
-_input_size = get_config_value("model", "input_size", [224, 224])
-INPUT_SIZE = tuple(_input_size) if isinstance(_input_size, list) else (224, 224)
-IMAGENET_MEAN = get_config_value("normalization", "mean", [0.485, 0.456, 0.406])
-IMAGENET_STD = get_config_value("normalization", "std", [0.229, 0.224, 0.225])
+INPUT_SIZE = (224, 224)           # H × W expected by both backbones
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
 
 # ──────────────────────────────────────────────
 # XAI (Explainability) Settings
 # ──────────────────────────────────────────────
-CAM_OPACITY = get_config_value("xai", "cam_opacity", 0.5)
+CAM_OPACITY = 0.5                 # Heatmap overlay blending alpha
 
 # ──────────────────────────────────────────────
 # Inference Performance
 # ──────────────────────────────────────────────
-LATENCY_TARGET_MS = get_config_value("inference", "latency_target_ms", 100)
-MAX_RAM_GB = get_config_value("inference", "max_ram_gb", 2.5)
+LATENCY_TARGET_MS = 100           # ≤ 100 ms end-to-end budget
+MAX_RAM_GB = 2.5                  # Hard ceiling during webcam streaming
 
 # ──────────────────────────────────────────────
-# Paths
+# Paths  (overridable via config/opticbin.yaml)
 # ──────────────────────────────────────────────
-WEIGHTS_DIR = get_config_value("paths", "weights_dir", "models/weights")
-ONNX_EXPORT_DIR = get_config_value("paths", "onnx_export_dir", "models/weights")
-DATASET_DIR = get_config_value("paths", "dataset_dir", "dataset")
-RESULTS_DIR = get_config_value("paths", "results_dir", "results")
-
-# ──────────────────────────────────────────────
-# Training Defaults (from config.yaml)
-# ──────────────────────────────────────────────
-DEFAULT_EPOCHS = get_config_value("training", "epochs", 15)
-DEFAULT_BATCH_SIZE = get_config_value("training", "batch_size", 32)
-DEFAULT_LEARNING_RATE = get_config_value("training", "learning_rate", 0.001)
-DEFAULT_PATIENCE = get_config_value("training", "patience", 10)
-DEFAULT_SEED = get_config_value("training", "seed", 42)
-DEFAULT_VAL_RATIO = get_config_value("training", "val_ratio", 0.2)
-
-# ──────────────────────────────────────────────
-# Inference Defaults
-# ──────────────────────────────────────────────
-DEFAULT_FRAMEWORK = get_config_value("inference", "default_framework", "pytorch")
+WEIGHTS_DIR     = _CFG.get("paths", {}).get("weights_dir",  "models/weights")
+ONNX_EXPORT_DIR = _CFG.get("paths", {}).get("weights_dir",  "models/weights")
+RESULTS_DIR     = _CFG.get("paths", {}).get("results_dir",  "results")
 
 
 def is_recyclable(label: str) -> bool:

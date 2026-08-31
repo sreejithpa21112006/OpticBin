@@ -7,8 +7,6 @@ real-time heatmap generation and classification.
 
 from __future__ import annotations
 
-import time
-
 import numpy as np
 import torch
 from pytorch_grad_cam import GradCAM
@@ -71,15 +69,12 @@ class RecyclingXAIEngine:
         Skips the Grad-CAM backward pass, which dominates frame cost, so
         live streams can classify every frame and explain periodically.
         """
-        start = time.perf_counter()
         input_tensor = input_tensor.to(self.device)
 
         with torch.no_grad():
             logits = self.model(input_tensor)
 
-        result = self._build_result(logits)
-        result["latency_ms"] = round((time.perf_counter() - start) * 1000, 2)
-        return result
+        return self._build_result(logits)
 
     def explain(
         self,
@@ -87,7 +82,6 @@ class RecyclingXAIEngine:
         rgb_float: np.ndarray,
     ) -> dict:
         """Grad-CAM heatmap generation plus the classification result."""
-        start = time.perf_counter()
         input_tensor = input_tensor.to(self.device)
 
         grayscale_cam = self.cam(input_tensor=input_tensor, targets=None)[0, :]
@@ -105,7 +99,6 @@ class RecyclingXAIEngine:
             use_rgb=True,
         )
         result["gradcam_available"] = True
-        result["latency_ms"] = round((time.perf_counter() - start) * 1000, 2)
         return result
 
     def predict_and_explain(

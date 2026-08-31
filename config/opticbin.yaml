@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OpticBin — External Configuration File
+# ─────────────────────────────────────────────────────────────────────────────
+# Edit this file to tune training, inference, and UI behaviour.
+# All values here override the hardcoded defaults in config/settings.py.
+
+# ── Training Hyperparameters ──────────────────────────────────────────────────
+training:
+  epochs: 15
+  batch_size: 32
+  learning_rate: 0.001
+  patience: 10            # Early-stopping patience (epochs with no improvement)
+  val_ratio: 0.2          # Fraction of dataset reserved for validation
+  seed: 42                # Global random seed for reproducibility
+  use_randaugment: false  # Set true to enable RandAugment data augmentation
+
+# ── Model Defaults ────────────────────────────────────────────────────────────
+model:
+  default: "efficientnetv2_s"   # maps to timm: efficientnetv2_rw_m (Medium, 2152-ch)
+  num_classes: 8   # cardboard, e_waste, glass, metal, organic, paper, plastic, trash
+
+# ── Inference ─────────────────────────────────────────────────────────────────
+inference:
+  latency_target_ms: 100  # Hard SLA: alert if mean latency exceeds this
+  max_ram_gb: 2.5
+
+# ── Preprocessing ─────────────────────────────────────────────────────────────
+preprocessing:
+  input_size: [224, 224]
+  imagenet_mean: [0.485, 0.456, 0.406]
+  imagenet_std:  [0.229, 0.224, 0.225]
+
+# ── XAI / Grad-CAM ────────────────────────────────────────────────────────────
+xai:
+  cam_opacity: 0.5
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+paths:
+  weights_dir: "models/weights"
+  results_dir: "results"
+  dataset_dir: "dataset"

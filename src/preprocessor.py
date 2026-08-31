@@ -92,3 +92,7 @@ def preprocess_frame(frame: np.ndarray) -> Tuple[torch.Tensor, np.ndarray]:
 def preprocess_pil(image: "PILImageType") -> Tuple[torch.Tensor, np.ndarray]:
     """PIL image → (input_tensor, rgb_float)."""
     return _default_preprocessor.prepare_pil_image(image)
+
+
+ImagePreprocessor = ImagePreprocessor
+build_eval_transform = build_eval_transform

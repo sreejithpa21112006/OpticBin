@@ -25,7 +25,7 @@
 
 ---
 
-## Table of Contents
+## 📋 Table of Contents
 
 - [Executive Summary](#-executive-summary)
 - [Core Mission Targets](#-core-mission-targets)
@@ -275,6 +275,6 @@ python models/export_onnx.py \
 
 ---
 
-## License
+## 📜 License
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
