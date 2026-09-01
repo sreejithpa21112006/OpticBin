@@ -24,6 +24,8 @@ models/weights/*.onnx.data
 !models/weights/mobilevit_xs.pt
 !models/weights/mobilevit_xs_int8.onnx
 !models/weights/efficientnetv2_s_int8.onnx
+!models/weights/efficientnetv2_s.pt
+
 
 
 # IDE
