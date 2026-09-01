@@ -22,5 +22,9 @@ numpy>=1.24.0
 # Dashboard UI (fragments used for non-blocking webcam)
 streamlit>=1.33.0
 
+# Object Detection (YOLO Cropper)
+ultralytics>=8.0.0
+
 # Utilities
 Pillow>=10.0.0
+

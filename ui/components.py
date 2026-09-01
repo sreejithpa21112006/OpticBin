@@ -57,10 +57,12 @@ def render_sidebar() -> tuple[str, str, str]:
         device_display = "GPU (CUDA)" if DEVICE == "cuda" else "CPU"
         st.markdown(
             f"- **Compute Device:** `{device_display}`\n"
+            f"- **ROI Cropper:** `YOLOv8 Auto-Bounding Box`\n"
             f"- **Latency Target:** ≤ {LATENCY_TARGET_MS} ms\n"
             f"- **Supported Classes:** {NUM_CLASSES}\n"
             f"- **Resolution:** {INPUT_SIZE[0]} × {INPUT_SIZE[1]}"
         )
+
 
         st.divider()
         st.subheader("Taxonomy Reference")

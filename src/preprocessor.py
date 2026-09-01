@@ -96,11 +96,23 @@ class ImagePreprocessor:
         self,
         image: "PILImageType",
         center_crop: bool | None = None,
+        use_yolo: bool = True,
     ) -> Tuple[torch.Tensor, np.ndarray]:
         rgb = image.convert("RGB")
         use_crop = self.center_crop if center_crop is None else center_crop
         if use_crop:
-            rgb = center_crop_square(rgb, crop_factor=self.crop_factor)
+            if use_yolo:
+                try:
+                    from src.yolo_cropper import crop_object_yolo
+                    yolo_cropped, detected, _ = crop_object_yolo(rgb)
+                    if detected:
+                        rgb = yolo_cropped
+                    else:
+                        rgb = center_crop_square(rgb, crop_factor=self.crop_factor)
+                except Exception:
+                    rgb = center_crop_square(rgb, crop_factor=self.crop_factor)
+            else:
+                rgb = center_crop_square(rgb, crop_factor=self.crop_factor)
 
         resized = rgb.resize(self.target_size, PILImage.BILINEAR)
         rgb_float = np.clip(np.asarray(resized, dtype=np.float32) / 255.0, 0.0, 1.0)
@@ -109,6 +121,7 @@ class ImagePreprocessor:
 
 
 _default_preprocessor = ImagePreprocessor(center_crop=True, crop_factor=0.60)
+
 
 
 
