@@ -108,7 +108,8 @@ class ImagePreprocessor:
         return input_tensor, rgb_float
 
 
-_default_preprocessor = ImagePreprocessor(center_crop=True, crop_factor=0.85)
+_default_preprocessor = ImagePreprocessor(center_crop=True, crop_factor=0.60)
+
 
 
 def preprocess_frame(frame: np.ndarray, center_crop: bool = True) -> Tuple[torch.Tensor, np.ndarray]:
