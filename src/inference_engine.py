@@ -122,9 +122,13 @@ class ONNXInferenceEngine(BaseInferenceEngine):
         latency_ms = (time.perf_counter() - start) * 1000
 
         logits = outputs[0][0]
+        if len(logits) == 8 and len(CLASS_LABELS) == 5:
+            # Index mapping: cardboard (0), glass (2), metal (3), paper (5), plastic (6)
+            logits = logits[[0, 2, 3, 5, 6]]
 
         # Softmax computation
         exp_logits = np.exp(logits - np.max(logits))
+
         probabilities = exp_logits / exp_logits.sum()
         class_id = int(np.argmax(probabilities))
 

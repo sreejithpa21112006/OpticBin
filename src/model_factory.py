@@ -98,18 +98,49 @@ def load_checkpoint(
         if any(k.startswith("module.") for k in state_dict.keys()):
             state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
 
-        result = model.load_state_dict(state_dict, strict=False)
+        OLD_8_CLASSES = ["cardboard", "e_waste", "glass", "metal", "organic", "paper", "plastic", "trash"]
+        NEW_5_CLASSES = ["cardboard", "glass", "metal", "paper", "plastic"]
+        REMAP_8_TO_5 = [OLD_8_CLASSES.index(c) for c in NEW_5_CLASSES]  # [0, 2, 3, 5, 6]
+
+        model_state = model.state_dict()
+        adapted_state_dict = {}
+        for key, tensor in state_dict.items():
+            if key in model_state:
+                target_shape = model_state[key].shape
+                if tensor.shape != target_shape:
+                    if tensor.shape[0] == 8 and target_shape[0] == 5:
+                        if tensor.ndim == 1:
+                            tensor = tensor[REMAP_8_TO_5]
+                        elif tensor.ndim == 2 and tensor.shape[1] == target_shape[1]:
+                            tensor = tensor[REMAP_8_TO_5, :]
+                    elif tensor.ndim == len(target_shape) and tensor.ndim >= 1 and tensor.shape[0] > target_shape[0]:
+                        if tensor.ndim == 1:
+                            tensor = tensor[:target_shape[0]]
+                        elif tensor.ndim == 2 and tensor.shape[1] == target_shape[1]:
+                            tensor = tensor[:target_shape[0], :]
+                    if tensor.shape != target_shape:
+                        print(
+                            f"[load_checkpoint] WARNING: Skipping mismatched layer '{key}': "
+                            f"checkpoint shape {state_dict[key].shape} != model shape {target_shape}"
+                        )
+                        continue
+            adapted_state_dict[key] = tensor
+
+
+
+        result = model.load_state_dict(adapted_state_dict, strict=False)
         if result.missing_keys:
             print(
                 f"[load_checkpoint] WARNING: {len(result.missing_keys)} keys missing "
-                f"from checkpoint — those layers use ImageNet init."
+                f"from checkpoint — those layers use default init."
             )
         if result.unexpected_keys:
             print(
                 f"[load_checkpoint] INFO: {len(result.unexpected_keys)} extra keys in "
-                f"checkpoint ignored (saved from a larger/different variant)."
+                f"checkpoint ignored."
             )
         return model
+
 
     raise TypeError(
         f"Unsupported checkpoint type {type(checkpoint)!r} in '{weights_path}'. "

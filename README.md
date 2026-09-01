@@ -96,7 +96,7 @@ OpticBin is a fully offline Edge-AI pipeline that classifies 8 categories of was
 |---|---|
 | Latency Target | Sub-100ms per frame (ONNX INT8 execution) |
 | System RAM Limit | Less than or equal to 2.5 GB during live stream mode |
-| Supported Classes | 8 classes (Cardboard, E-Waste, Glass, Metal, Organic, Paper, Plastic, Trash) |
+| Supported Classes | 5 classes (Cardboard, Glass, Metal, Paper, Plastic) |
 | Execution Mode | 100% Offline (Local CPU / CUDA support) |
 | Compression | 4x size reduction via INT8 Post-Training Quantization |
 | Explainability | Grad-CAM heatmap overlays on PyTorch execution path |
@@ -108,13 +108,11 @@ OpticBin is a fully offline Edge-AI pipeline that classifies 8 categories of was
 | Class Name | Target Materials and Items |
 |---|---|
 | Cardboard | Corrugated shipping boxes, paperboard packaging |
-| E-Waste | Circuit boards, cables, discarded consumer electronics |
 | Glass | Glass bottles, jars, window fragments |
 | Metal | Aluminum cans, tin foil, metallic hardware |
-| Organic | Food scraps, fruit peels, yard waste |
 | Paper | Office paper, newsprint, magazines |
 | Plastic | PET bottles, HDPE containers, plastic packaging |
-| Trash | Non-recyclable composite waste |
+
 
 ---
 

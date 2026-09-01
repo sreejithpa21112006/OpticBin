@@ -36,11 +36,10 @@ DATASET_URL = "https://github.com/garythung/trashnet/raw/master/data/dataset-res
 DEFAULT_DEST_DIR = "dataset"
 ZIP_PATH = "trashnet.zip"
 
-# Original 5 classes (TrashNet)
+# 5 Core Baseline Classes (TrashNet)
+CLASS_LABELS = ["cardboard", "glass", "metal", "paper", "plastic"]
 ORIGINAL_CLASSES = ["cardboard", "glass", "metal", "paper", "plastic"]
 
-# All 8 classes
-CLASS_LABELS = ["cardboard", "glass", "metal", "paper", "plastic", "e_waste", "organic", "trash"]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Open image sources for new classes (CC0/public domain datasets)

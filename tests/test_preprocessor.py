@@ -28,6 +28,12 @@ class TestPreprocessor(unittest.TestCase):
         self.assertEqual(tensor.shape, (1, 3, 224, 224))
         self.assertEqual(rgb_float.shape, (224, 224, 3))
 
+    def test_center_crop_square(self):
+        pil_img = Image.new("RGB", (640, 480), color="blue")
+        tensor, rgb_float = preprocess_pil(pil_img, center_crop=True)
+        self.assertEqual(tensor.shape, (1, 3, 224, 224))
+
 
 if __name__ == "__main__":
     unittest.main()
+

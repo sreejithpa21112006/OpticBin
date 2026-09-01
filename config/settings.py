@@ -58,17 +58,14 @@ SUPPORTED_MODELS: dict[str, dict[str, str]] = {
 DEFAULT_MODEL = "efficientnetv2_s"
 
 # ──────────────────────────────────────────────
-# Class Labels  (8-class extended waste taxonomy)
+# Class Labels  (5-class core waste taxonomy)
 # ──────────────────────────────────────────────
 CLASS_LABELS = [
     "cardboard",
-    "e_waste",
     "glass",
     "metal",
-    "organic",
     "paper",
     "plastic",
-    "trash",
 ]
 
 NUM_CLASSES = len(CLASS_LABELS)
@@ -138,58 +135,15 @@ WASTE_METADATA: dict[str, dict] = {
         "biodegradable": False,
         "category": "Non-Biodegradable",
         "recyclable": True,
-        "decomposition": "50-500 years (aluminum: 200 yrs, steel: 50 yrs)",
+        "decomposition": "50–500 years (aluminum: 200 yrs, steel: 50 yrs)",
         "disposal": "Recycling Bin (Metal)",
         "color": "#8B5CF6",
         "tips": [
-            "Rinse cans -- labels can stay on (they burn off during recycling)",
+            "Rinse cans — labels can stay on (they burn off during recycling)",
             "Aluminum cans are the most valuable recyclable material",
             "Recycling 1 aluminum can saves enough energy to run a TV for 3 hours",
         ],
-        "environmental_impact": "Medium -- mining is destructive but metals are infinitely recyclable with no quality loss.",
-    },
-    "e_waste": {
-        "biodegradable": False,
-        "category": "Electronic Waste",
-        "recyclable": "Specialist only",
-        "decomposition": "Hundreds to thousands of years",
-        "disposal": "E-Waste Collection Centre",
-        "color": "#10B981",
-        "tips": [
-            "NEVER put electronics in regular bins -- they contain toxic metals (lead, mercury)",
-            "Take to an authorised e-waste recycling centre or manufacturer take-back programme",
-            "Remove batteries before disposal -- they are separate hazardous waste",
-            "Data-wipe devices before recycling for privacy",
-        ],
-        "environmental_impact": "Very High -- e-waste leaches lead, cadmium, and mercury into soil and water. Only ~20% is formally recycled globally.",
-    },
-    "organic": {
-        "biodegradable": True,
-        "category": "Biodegradable",
-        "recyclable": "Via composting",
-        "decomposition": "Days to months",
-        "disposal": "Compost Bin / Green Bin",
-        "color": "#84CC16",
-        "tips": [
-            "Compost fruit peels, vegetable scraps, coffee grounds, and eggshells",
-            "Avoid composting meat, dairy, or oily food -- attracts pests",
-            "Home composting reduces landfill methane emissions significantly",
-        ],
-        "environmental_impact": "Low if composted -- organic matter in landfills produces methane, a potent greenhouse gas. Compost returns nutrients to soil.",
-    },
-    "trash": {
-        "biodegradable": False,
-        "category": "General Waste",
-        "recyclable": False,
-        "decomposition": "50-1000+ years depending on material",
-        "disposal": "General Waste Bin (Landfill)",
-        "color": "#6B7280",
-        "tips": [
-            "Reduce single-use items to minimise general waste",
-            "Check if any component can be separated and recycled before binning",
-            "Soiled or composite materials often cannot be recycled",
-        ],
-        "environmental_impact": "High -- general waste ends up in landfill or incineration. Reducing consumption is the most effective intervention.",
+        "environmental_impact": "Medium — mining is destructive but metals are infinitely recyclable with no quality loss.",
     },
 }
 

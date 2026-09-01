@@ -17,7 +17,8 @@ training:
 # ── Model Defaults ────────────────────────────────────────────────────────────
 model:
   default: "efficientnetv2_s"   # maps to timm: efficientnetv2_rw_m (Medium, 2152-ch)
-  num_classes: 8   # cardboard, e_waste, glass, metal, organic, paper, plastic, trash
+  num_classes: 5   # cardboard, glass, metal, paper, plastic
+
 
 # ── Inference ─────────────────────────────────────────────────────────────────
 inference:

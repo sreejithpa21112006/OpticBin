@@ -6,6 +6,7 @@ import streamlit as st
 
 from config.settings import (
     CLASS_LABELS,
+    DEVICE,
     INPUT_SIZE,
     LATENCY_TARGET_MS,
     NUM_CLASSES,
@@ -53,7 +54,9 @@ def render_sidebar() -> tuple[str, str, str]:
 
         st.divider()
         st.subheader("Performance Specs")
+        device_display = "GPU (CUDA)" if DEVICE == "cuda" else "CPU"
         st.markdown(
+            f"- **Compute Device:** `{device_display}`\n"
             f"- **Latency Target:** ≤ {LATENCY_TARGET_MS} ms\n"
             f"- **Supported Classes:** {NUM_CLASSES}\n"
             f"- **Resolution:** {INPUT_SIZE[0]} × {INPUT_SIZE[1]}"
@@ -73,18 +76,21 @@ def render_sidebar() -> tuple[str, str, str]:
 def render_engine_status(model_type: str, framework: str, engine: object) -> None:
     is_onnx = getattr(engine, "__class__", None).__name__ == "ONNXInferenceEngine"
     using_finetuned = getattr(engine, "using_finetuned_weights", False)
+    provider = getattr(engine, "provider", None)
 
     if "ONNX" in framework:
         if is_onnx:
-            st.sidebar.success(f"ONNX Engine Active ({model_type})")
+            provider_name = "GPU (CUDA)" if "CUDA" in str(provider) else "CPU"
+            st.sidebar.success(f"ONNX Engine Active ({model_type}) — Running on {provider_name}")
         else:
             st.sidebar.warning(
                 f"No `.onnx` checkpoint found for `{model_type}`. "
                 "Falling back to PyTorch."
             )
     else:
+        dev_name = "GPU (CUDA)" if DEVICE == "cuda" else "CPU"
         if using_finetuned:
-            st.sidebar.success(f"Fine-tuned PyTorch Engine Active ({model_type})")
+            st.sidebar.success(f"PyTorch Engine Active ({model_type}) — Running on {dev_name}")
         else:
             st.sidebar.warning(
                 f"No fine-tuned `{model_type}.pt` found. "
@@ -93,6 +99,7 @@ def render_engine_status(model_type: str, framework: str, engine: object) -> Non
             )
             if not getattr(engine, "supports_gradcam", True):
                 st.sidebar.info("Grad-CAM heatmaps are available only with the PyTorch engine.")
+
 
 
 def render_untrained_warning(engine: object) -> None:

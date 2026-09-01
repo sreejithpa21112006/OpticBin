@@ -25,7 +25,8 @@ class TestConfiguration(unittest.TestCase):
         spec = get_model_spec_obj("efficientnetv2_s")
         self.assertEqual(spec.name, "efficientnetv2_s")
         self.assertEqual(spec.cam_target, "conv_head")
-        self.assertEqual(spec.timm_name, "efficientnetv2_rw_s")
+        self.assertEqual(spec.timm_name, "efficientnetv2_rw_m")
+
 
         with self.assertRaises(ValueError):
             get_model_spec_obj("invalid_architecture")
