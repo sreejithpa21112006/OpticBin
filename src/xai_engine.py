@@ -84,22 +84,32 @@ class RecyclingXAIEngine:
         """Grad-CAM heatmap generation plus the classification result."""
         input_tensor = input_tensor.to(self.device)
 
-        grayscale_cam = self.cam(input_tensor=input_tensor, targets=None)[0, :]
+        try:
+            grayscale_cam = self.cam(input_tensor=input_tensor, targets=None)[0, :]
 
-        # Grad-CAM's internal forward already produced the logits.
-        logits = getattr(self.cam, "outputs", None)
-        if logits is None:
+            # Grad-CAM's internal forward already produced the logits.
+            logits = getattr(self.cam, "outputs", None)
+            if logits is None:
+                with torch.no_grad():
+                    logits = self.model(input_tensor)
+
+            result = self._build_result(logits)
+            result["heatmap_overlay"] = self.renderer.blend(
+                rgb_float,
+                grayscale_cam,
+                use_rgb=True,
+            )
+            result["gradcam_available"] = True
+            return result
+        except Exception as err:
+            print(f"[RecyclingXAIEngine] Grad-CAM warning: {err}")
             with torch.no_grad():
                 logits = self.model(input_tensor)
+            result = self._build_result(logits)
+            result["heatmap_overlay"] = (np.clip(rgb_float, 0, 1) * 255.0).astype(np.uint8)
+            result["gradcam_available"] = False
+            return result
 
-        result = self._build_result(logits)
-        result["heatmap_overlay"] = self.renderer.blend(
-            rgb_float,
-            grayscale_cam,
-            use_rgb=True,
-        )
-        result["gradcam_available"] = True
-        return result
 
     def predict_and_explain(
         self,

@@ -79,18 +79,30 @@ class ImagePreprocessor:
         # Kept for callers / trainer lockstep documentation.
         self.transform = build_eval_transform(self.target_size, self.mean, self.std)
 
-    def prepare_array(self, rgb: np.ndarray, center_crop: bool | None = None) -> Tuple[torch.Tensor, np.ndarray]:
+    def prepare_array(
+        self,
+        rgb: np.ndarray,
+        center_crop: bool | None = None,
+        use_yolo: bool = True,
+    ) -> Tuple[torch.Tensor, np.ndarray]:
         """RGB uint8 [H, W, 3] → (tensor [1, 3, 224, 224], float RGB [224, 224, 3])."""
         if rgb.ndim != 3 or rgb.shape[2] != 3:
             raise ValueError(f"Expected RGB array [H, W, 3], got shape {rgb.shape}.")
         return self.prepare_pil_image(
             PILImage.fromarray(np.ascontiguousarray(rgb)).convert("RGB"),
             center_crop=center_crop,
+            use_yolo=use_yolo,
         )
 
-    def prepare_bgr_frame(self, frame: np.ndarray, center_crop: bool | None = None) -> Tuple[torch.Tensor, np.ndarray]:
+    def prepare_bgr_frame(
+        self,
+        frame: np.ndarray,
+        center_crop: bool | None = None,
+        use_yolo: bool = True,
+    ) -> Tuple[torch.Tensor, np.ndarray]:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        return self.prepare_array(rgb, center_crop=center_crop)
+        return self.prepare_array(rgb, center_crop=center_crop, use_yolo=use_yolo)
+
 
     def prepare_pil_image(
         self,
