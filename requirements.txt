@@ -14,9 +14,10 @@ onnxscript>=0.1.0
 # Explainability (XAI)
 grad-cam>=1.5.0
 
-# Computer Vision
-opencv-python>=4.8.0
+# Computer Vision (Headless for cloud compatibility without libGL apt dependencies)
+opencv-python-headless>=4.8.0
 numpy>=1.24.0
+
 
 # Dashboard UI (fragments used for non-blocking webcam)
 streamlit>=1.33.0
