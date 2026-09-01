@@ -21,6 +21,10 @@ models/weights/*.pt
 models/weights/*.onnx
 models/weights/*.onnx.data
 !models/weights/.gitkeep
+!models/weights/mobilevit_xs.pt
+!models/weights/mobilevit_xs_int8.onnx
+!models/weights/efficientnetv2_s_int8.onnx
+
 
 # IDE
 .vscode/
