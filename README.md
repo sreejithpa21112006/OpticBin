@@ -32,9 +32,9 @@
 
 ## Executive Summary
 
-Industrial waste sorting requires real-time, offline automated classification across diverse material types including electronic waste, organic matter, glass, paper, cardboard, plastic, metal, and general trash. Cloud-based inference models introduce latency, bandwidth costs, and network reliability bottlenecks in industrial edge environments. Furthermore, regulatory auditing requires Explainable AI (XAI) feature maps to verify model reasoning.
+Industrial waste sorting requires real-time, offline automated classification across diverse material types including cardboard, glass, metal, paper, and plastic. Cloud-based inference models introduce latency, bandwidth costs, and network reliability bottlenecks in industrial edge environments. Furthermore, regulatory auditing requires Explainable AI (XAI) feature maps to verify model reasoning.
 
-OpticBin is a fully offline Edge-AI pipeline that classifies 8 categories of waste using fine-tuned backbones (EfficientNetV2-S and MobileViT-XS). It offers dual inference execution paths:
+OpticBin is a fully offline Edge-AI pipeline that classifies 5 categories of waste using fine-tuned backbones (EfficientNetV2-S and MobileViT-XS). It offers dual inference execution paths:
 1. **PyTorch Engine:** Full inference with visual Grad-CAM heatmap generation.
 2. **ONNX Runtime Engine:** INT8-quantized execution provider optimized for sub-100ms CPU latency.
 
@@ -48,8 +48,9 @@ OpticBin is a fully offline Edge-AI pipeline that classifies 8 categories of was
 +-----------------------------------------------------------------------------------+
 |                                                                                   |
 |  [ Data Ingestion ]                                                               |
-|   - TrashNet & Kaggle 8-Class Dataset                                             |
-|   - Scripts: download_dataset.py, download_new_classes.py                         |
+|   - TrashNet 5-Class Dataset                                                      |
+|   - Script: download_dataset.py                                                   |
+
 |                               │                                                   |
 |                               ▼                                                   |
 |  [ Preprocessing & Data Pipeline ]                                                |
@@ -137,7 +138,8 @@ OpticBin/
 │   ├── opticbin.yaml          # External YAML configuration (seed, LR, epochs, paths)
 │   ├── schema.py              # Dataclass validation schemas
 │   └── settings.py            # Central settings parser and default fallback bindings
-├── dataset/                   # Local dataset directory (8 waste class subfolders)
+├── dataset/                   # Local dataset directory (5 waste class subfolders)
+
 ├── models/
 │   ├── benchmark.py           # Latency and memory benchmarking tool
 │   ├── export_onnx.py         # PyTorch to INT8 ONNX converter
@@ -210,14 +212,14 @@ pip install -r requirements.txt
 
 ## Dataset Preparation
 
-To download and structure the 8-class dataset automatically:
+To download and structure the 5-class dataset automatically:
 
 ```bash
 python download_dataset.py
-python download_new_classes.py
 ```
 
-This populates the `dataset/` directory with class subfolders: `cardboard`, `e_waste`, `glass`, `metal`, `organic`, `paper`, `plastic`, and `trash`.
+This populates the `dataset/` directory with class subfolders: `cardboard`, `glass`, `metal`, `paper`, and `plastic`.
+
 
 ---
 
