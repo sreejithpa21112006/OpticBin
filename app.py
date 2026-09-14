@@ -84,7 +84,7 @@ def _render_api_key_input() -> str | None:
     key_input = st.sidebar.text_input(
         "Gemini API Key",
         type="password",
-        placeholder="AIza...",
+        placeholder="Enter your Gemini API key",
         key="_gemini_key_input",
         label_visibility="collapsed",
     )

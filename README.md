@@ -194,13 +194,13 @@ To enable the interactive AI Recycling Advisor and Active Learning cross-checks:
 - Provide the key via Streamlit secrets (`.streamlit/secrets.toml`):
 
 ```toml
-GEMINI_API_KEY = "AIzaSy..."
+GEMINI_API_KEY = "your-gemini-api-key-here"
 ```
 
 Alternatively, set the environment variable:
 ```bash
-export GEMINI_API_KEY="AIzaSy..."     # Linux/macOS
-$env:GEMINI_API_KEY="AIzaSy..."       # Windows PowerShell
+export GEMINI_API_KEY="your-gemini-api-key-here"     # Linux/macOS
+$env:GEMINI_API_KEY="your-gemini-api-key-here"       # Windows PowerShell
 ```
 
 The API key can also be entered interactively in the application sidebar at runtime.
