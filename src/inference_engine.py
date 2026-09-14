@@ -7,11 +7,16 @@ and PyTorch inference engines with automatic hardware acceleration.
 
 from __future__ import annotations
 
+import sys
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 import numpy as np
 import torch
@@ -43,6 +48,7 @@ class PredictionResult:
     confidence: float
     probabilities: np.ndarray
     latency_ms: float
+    class_names: Optional[List[str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert container to legacy dict format for frontend components."""
@@ -52,6 +58,7 @@ class PredictionResult:
             "confidence": self.confidence,
             "probabilities": self.probabilities,
             "latency_ms": self.latency_ms,
+            "class_names": self.class_names or CLASS_LABELS,
         }
 
     def __getitem__(self, item: str) -> Any:
@@ -103,7 +110,7 @@ class ONNXInferenceEngine(BaseInferenceEngine):
         self.output_name = self.session.get_outputs()[0].name
         self.provider = self.session.get_providers()[0]
 
-        print(f"[✓] ONNX session initialized ({model_type}) — Provider: {self.provider}")
+        print(f"[OK] ONNX session initialized ({model_type}) - Provider: {self.provider}")
 
     def predict(self, input_tensor_or_array: torch.Tensor | np.ndarray) -> PredictionResult:
         """

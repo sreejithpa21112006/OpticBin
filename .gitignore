@@ -20,15 +20,12 @@ env/
 models/weights/*.pt
 models/weights/*.onnx
 models/weights/*.onnx.data
+*.pt
+*.onnx
 !models/weights/.gitkeep
-!models/weights/mobilevit_xs.pt
-!models/weights/mobilevit_xs_int8.onnx
-!models/weights/efficientnetv2_s_int8.onnx
-!models/weights/efficientnetv2_s.pt
-!models/weights/yolov8n.pt
 
-
-
+# Training runs & intermediate checkpoints
+runs/
 
 # IDE
 .vscode/
@@ -43,6 +40,8 @@ desktop.ini
 
 # Datasets & Downloads
 dataset/
+dataset_roboflow/
+dataset_yolo/
 dataset_temp/
 *.zip
 
@@ -56,3 +55,10 @@ dataset_temp/
 results/*.json
 results/*.txt
 !results/.gitkeep
+
+# Active Learning Review Queue (flagged images — may be large, never commit)
+review_queue/
+
+# Local environment / API secrets
+.env
+.env.local

@@ -43,19 +43,15 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # Model Configuration
 # ──────────────────────────────────────────────
 SUPPORTED_MODELS: dict[str, dict[str, str]] = {
-    "efficientnetv2_s": {
-        "timm_name": "efficientnetv2_rw_m",   # saved .pt is the Medium variant (2152-ch head)
-        "description": "Texture-focused CNN (EfficientNetV2-RW-M) — strong on surface material features",
-        "cam_target": "conv_head",
-    },
-    "mobilevit_xs": {
-        "timm_name": "mobilevit_xs",
-        "description": "Global spatial ViT — captures shape & structural context",
-        "cam_target": "final_conv",
+    "yolov8_unified": {
+        "timm_name": "yolov8_unified",
+        "description": "Unified Single-Stage YOLO - simultaneous bounding box detection and material classification",
+        "cam_target": "none",
     },
 }
 
-DEFAULT_MODEL = "efficientnetv2_s"
+
+DEFAULT_MODEL = "yolov8_unified"
 
 # ──────────────────────────────────────────────
 # Class Labels  (5-class core waste taxonomy)
@@ -74,6 +70,20 @@ NUM_CLASSES = len(CLASS_LABELS)
 # Waste Metadata  (Biodegradability & Disposal)
 # ──────────────────────────────────────────────
 WASTE_METADATA: dict[str, dict] = {
+    "biodegradable": {
+        "biodegradable": True,
+        "category": "Biodegradable / Organic",
+        "recyclable": "Compostable (Organic Waste)",
+        "decomposition": "2-6 weeks (food waste) / 1-3 months",
+        "disposal": "Compost / Organic Bin",
+        "color": "#16A34A",
+        "tips": [
+            "Place in organic waste or compost bin",
+            "Keep free from plastics, packaging, and non-organic trash",
+            "Food scraps and plant materials decompose into nutrient-rich soil",
+        ],
+        "environmental_impact": "Beneficial - composting diverts waste from landfills and prevents methane greenhouse gas emissions.",
+    },
     "glass": {
         "biodegradable": False,
         "category": "Non-Biodegradable",
@@ -171,6 +181,17 @@ MAX_RAM_GB = 2.5                  # Hard ceiling during webcam streaming
 WEIGHTS_DIR     = _CFG.get("paths", {}).get("weights_dir",  "models/weights")
 ONNX_EXPORT_DIR = _CFG.get("paths", {}).get("weights_dir",  "models/weights")
 RESULTS_DIR     = _CFG.get("paths", {}).get("results_dir",  "results")
+
+# ──────────────────────────────────────────────
+# LLM / Active Learning
+# ──────────────────────────────────────────────
+LLM_MODEL = "gemini-2.5-flash"
+
+# Confidence below this → Gemini Vision cross-check is triggered
+ACTIVE_LEARNING_CONFIDENCE_THRESHOLD: float = 0.35
+
+# Directory where uncertain predictions are logged for review & retraining
+REVIEW_QUEUE_DIR = "review_queue"
 
 
 def is_recyclable(label: str) -> bool:

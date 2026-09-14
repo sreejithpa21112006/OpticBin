@@ -10,7 +10,13 @@ The overlay image is the same 224×224 RGB in [0, 1], without normalization.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Tuple
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 import cv2
 import numpy as np
@@ -52,6 +58,17 @@ def center_crop_square(image: "PILImageType", crop_factor: float = 0.85) -> "PIL
     right = left + crop_size
     bottom = top + crop_size
     return image.crop((left, top, right, bottom))
+
+
+def make_square_pad(image: "PILImageType", bg_color=(128, 128, 128)) -> "PILImageType":
+    """Pad PIL image to a square with neutral grey letterboxing to preserve aspect ratio."""
+    w, h = image.size
+    if w == h:
+        return image
+    max_dim = max(w, h)
+    padded = PILImage.new(image.mode, (max_dim, max_dim), bg_color)
+    padded.paste(image, ((max_dim - w) // 2, (max_dim - h) // 2))
+    return padded
 
 
 class ImagePreprocessor:
@@ -103,7 +120,6 @@ class ImagePreprocessor:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         return self.prepare_array(rgb, center_crop=center_crop, use_yolo=use_yolo)
 
-
     def prepare_pil_image(
         self,
         image: "PILImageType",
@@ -118,7 +134,7 @@ class ImagePreprocessor:
                     from src.yolo_cropper import crop_object_yolo
                     yolo_cropped, detected, _ = crop_object_yolo(rgb)
                     if detected:
-                        rgb = yolo_cropped
+                        rgb = make_square_pad(yolo_cropped)
                     else:
                         rgb = center_crop_square(rgb, crop_factor=self.crop_factor)
                 except Exception:
@@ -130,6 +146,8 @@ class ImagePreprocessor:
         rgb_float = np.clip(np.asarray(resized, dtype=np.float32) / 255.0, 0.0, 1.0)
         input_tensor = self._to_tensor(resized).unsqueeze(0)
         return input_tensor, rgb_float
+
+
 
 
 _default_preprocessor = ImagePreprocessor(center_crop=True, crop_factor=0.60)

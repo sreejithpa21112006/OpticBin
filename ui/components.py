@@ -1,4 +1,7 @@
-"""Reusable, functional Streamlit components for the OpticBin dashboard."""
+"""
+Streamlined, user-first UI components for the OpticBin dashboard.
+Focuses on clear bin recommendations, clean visual hierarchy, and intuitive action guidance.
+"""
 
 from __future__ import annotations
 
@@ -15,123 +18,129 @@ from config.settings import (
 )
 from ui.styles import IMAGE_MODE, WEBCAM_MODE
 
-
-def render_header() -> None:
-    st.title("OpticBin")
-    st.caption(
-        "Offline Edge-AI Waste Classifier — Instant disposal guidance with explainable AI."
-    )
-
-
 PYTORCH_FRAMEWORK = "PyTorch + Grad-CAM"
 ONNX_FRAMEWORK = "ONNX Runtime (Fast)"
 
 
-def render_sidebar() -> tuple[str, str, str]:
-    """Render model, framework, and input controls. Returns `(model_choice, framework, input_mode)`."""
-    with st.sidebar:
-        st.header("Workspace Controls")
-        model_choice = st.selectbox(
-            "Backbone Architecture",
-            options=list(SUPPORTED_MODELS.keys()),
-            index=0,
-            help="Switch between CNN (EfficientNetV2) and ViT (MobileViT) architectures.",
-        )
-        st.caption(SUPPORTED_MODELS[model_choice]["description"])
-
-        framework = st.radio(
-            "Inference Engine",
-            [PYTORCH_FRAMEWORK, ONNX_FRAMEWORK],
-            index=0,
-            help="PyTorch for Grad-CAM heatmaps or ONNX Runtime for minimum latency.",
-        )
-
-        input_mode = st.radio(
-            "Input Source",
-            [IMAGE_MODE, WEBCAM_MODE],
-            index=0,
-        )
-
-        st.divider()
-        st.subheader("Performance Specs")
-        device_display = "GPU (CUDA)" if DEVICE == "cuda" else "CPU"
-        st.markdown(
-            f"- **Compute Device:** `{device_display}`\n"
-            f"- **ROI Cropper:** `YOLOv8 Auto-Bounding Box`\n"
-            f"- **Latency Target:** ≤ {LATENCY_TARGET_MS} ms\n"
-            f"- **Supported Classes:** {NUM_CLASSES}\n"
-            f"- **Resolution:** {INPUT_SIZE[0]} × {INPUT_SIZE[1]}"
-        )
-
-
-        st.divider()
-        st.subheader("Taxonomy Reference")
-        for label in CLASS_LABELS:
-            meta = WASTE_METADATA[label]
-            st.markdown(
-                f"**{label.title()}**: {_bio_short(meta)}"
-            )
-
-    return model_choice, framework, input_mode
-
-
-def render_engine_status(model_type: str, framework: str, engine: object) -> None:
-    is_onnx = getattr(engine, "__class__", None).__name__ == "ONNXInferenceEngine"
-    using_finetuned = getattr(engine, "using_finetuned_weights", False)
-    provider = getattr(engine, "provider", None)
-
-    if "ONNX" in framework:
-        if is_onnx:
-            provider_name = "GPU (CUDA)" if "CUDA" in str(provider) else "CPU"
-            st.sidebar.success(f"ONNX Engine Active ({model_type}) — Running on {provider_name}")
-        else:
-            st.sidebar.warning(
-                f"No `.onnx` checkpoint found for `{model_type}`. "
-                "Falling back to PyTorch."
-            )
-    else:
-        dev_name = "GPU (CUDA)" if DEVICE == "cuda" else "CPU"
-        if using_finetuned:
-            st.sidebar.success(f"PyTorch Engine Active ({model_type}) — Running on {dev_name}")
-        else:
-            st.sidebar.warning(
-                f"No fine-tuned `{model_type}.pt` found. "
-                "Using ImageNet-pretrained weights — waste predictions are not reliable. "
-                "Run `python train.py` first."
-            )
-            if not getattr(engine, "supports_gradcam", True):
-                st.sidebar.info("Grad-CAM heatmaps are available only with the PyTorch engine.")
-
-
-
-def render_untrained_warning(engine: object) -> None:
-    if getattr(engine, "using_finetuned_weights", False):
-        return
-    st.warning(
-        "This session is **not using a fine-tuned waste model**. "
-        "Predictions come from an ImageNet-pretrained backbone with a new 5-class head, "
-        "so labels and disposal guidance can be wrong. Train with `python train.py` "
-        "and keep the checkpoint in `models/weights/`."
+def render_header() -> None:
+    """Render a clean, uncluttered application header."""
+    st.markdown(
+        """
+        <div class="ob-header-container">
+            <h1 class="ob-title">OpticBin</h1>
+            <p class="ob-subtitle">Smart Waste Sorting Assistant - Scan any item for instant recycling and disposal guidance</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
 
-def render_heatmap(heatmap, engine: object, caption: str | None = None) -> None:
-    if heatmap is None or not getattr(engine, "supports_gradcam", True):
-        st.info(
-            "Grad-CAM is available only with **PyTorch + Grad-CAM**. "
-            "ONNX Runtime classifies faster but does not produce a heatmap."
+def render_sidebar() -> str:
+    """
+    Streamlined sidebar prioritizing input mode selection with zero model clutter.
+    """
+    with st.sidebar:
+        st.markdown("### Scan Method")
+        input_mode = st.radio(
+            "Select input mode",
+            [WEBCAM_MODE, IMAGE_MODE],
+            index=0,
+            label_visibility="collapsed",
         )
+
+        st.divider()
+        st.caption("**Model:** Fine-Tuned Unified YOLOv8")
+        st.caption(f"**Hardware:** `{'GPU (CUDA)' if DEVICE == 'cuda' else 'CPU'}`")
+        st.caption(f"**Classes:** `6 Material Categories (Roboflow)`")
+
+    return input_mode
+
+
+def render_engine_status(engine: object) -> None:
+    """Subtle status indicator in sidebar."""
+    using_finetuned = getattr(engine, "using_finetuned_weights", False)
+    if using_finetuned:
+        st.sidebar.caption("[Status] Active: Fine-tuned waste detection weights.")
+    else:
+        st.sidebar.caption("[Status] Active: Base weights.")
+
+    if not using_finetuned:
+        st.sidebar.caption("[Status] Using ImageNet base weights (uncalibrated).")
+
+
+def render_untrained_warning(engine: object) -> None:
+    """Warns if the model is operating without fine-tuned weights."""
+    if getattr(engine, "using_finetuned_weights", False):
         return
-    st.image(heatmap, caption=caption, width="stretch")
+    st.info(
+        "Notice: Using standard base weights. For production sorting accuracy, "
+        "ensure fine-tuned weights are present in models/weights/."
+    )
 
 
-def render_empty_state(title: str, body: str) -> None:
+def render_hero_bin_card(result: dict, latency_ms: float) -> None:
+    """
+    Renders a prominent, color-coded hero recommendation card that immediately
+    informs the user which bin the item belongs to.
+    """
+    label = result.get("class_label", "plastic").lower()
+    meta = WASTE_METADATA.get(label, {})
+    confidence = result.get("confidence", 0.0) * 100
+    disposal_bin = meta.get("disposal", "General Recycling Bin")
+    bio_label = _bio_label(meta)
+    theme_class = f"ob-bin-hero-{label}" if label in ["plastic", "paper", "cardboard", "metal", "glass", "biodegradable"] else "ob-bin-hero-plastic"
+
+    corrected_pill = ""
+    if result.get("corrected_by_gemini") or result.get("verified_by_gemini"):
+        corrected_pill = '<span class="ob-pill" style="border-color:#10B981; color:#10B981;">Source: <b>AI Supervisor Verified</b></span>'
+
     st.markdown(
         f"""
-        <div class="ob-empty">
-            <p class="ob-kicker">Status</p>
-            <h4>{title}</h4>
-            <p style="opacity:0.75; font-size:0.9rem; margin-top:0.3rem;">{body}</p>
+        <div class="ob-bin-hero {theme_class}">
+            <div class="ob-bin-kicker">Recommended Disposal Destination</div>
+            <div class="ob-bin-title">{disposal_bin.upper()}</div>
+            <div class="ob-bin-meta-row">
+                <span class="ob-pill">Material: <b>{label.title()}</b></span>
+                <span class="ob-pill">Confidence: <b>{confidence:.1f}%</b></span>
+                <span class="ob-pill">Type: <b>{bio_label}</b></span>
+                <span class="ob-pill">Scan Time: <b>{latency_ms:.0f} ms</b></span>
+                {corrected_pill}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_actionable_checklist(result: dict) -> None:
+    """Renders a clean, actionable preparation and handling checklist."""
+    label = result.get("class_label", "plastic").lower()
+    meta = WASTE_METADATA.get(label, {})
+    if not meta:
+        return
+
+    tips = meta.get("tips", ["Empty and rinse containers before discarding."])
+    decomposition = meta.get("decomposition", "Varies")
+    recyclable = meta.get("recyclable", True)
+
+    recycle_status = "Fully Recyclable" if recyclable is True else "Check local recycling facility rules"
+
+    st.markdown(
+        f"""
+        <div class="ob-checklist">
+            <div style="font-weight:700; font-size:1rem; margin-bottom:0.6rem;">Disposal Instructions</div>
+            <div class="ob-checklist-item">
+                <span class="ob-checklist-bullet">[x]</span>
+                <div><b>Recyclability:</b> {recycle_status}</div>
+            </div>
+            <div class="ob-checklist-item">
+                <span class="ob-checklist-bullet">[x]</span>
+                <div><b>Preparation:</b> {tips[0] if tips else 'Empty contents thoroughly.'}</div>
+            </div>
+            <div class="ob-checklist-item">
+                <span class="ob-checklist-bullet">[x]</span>
+                <div><b>Environmental Impact:</b> Estimated decomposition time: {decomposition}</div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -139,98 +148,142 @@ def render_empty_state(title: str, body: str) -> None:
 
 
 def render_prediction_summary(result: dict, latency_ms: float, compact: bool = False) -> None:
-    label = result["class_label"]
-    meta = WASTE_METADATA.get(label, {})
-    confidence = result["confidence"] * 100
-    bio_label = _bio_label(meta)
-    disposal_action = meta.get("disposal", "General Waste")
+    """Unified wrapper for hero bin card and checklist."""
+    render_hero_bin_card(result, latency_ms)
+    render_actionable_checklist(result)
 
-    if compact:
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Material", label.title())
-        m2.metric("Confidence", f"{confidence:.1f}%")
-        m3.metric("Latency", f"{latency_ms:.0f} ms")
-        m4.metric("Category", bio_label)
-        _render_latency_status(latency_ms)
+
+def render_disposal_guidance(result: dict, advisor=None) -> None:
+    """Optional AI advisor section."""
+    if advisor is None or not getattr(advisor, "is_available", False):
         return
 
-    # Action-first functional card
+    with st.expander("AI Recycling Assistant", expanded=False):
+        btn_key = f"ai_advice_{result.get('class_label', 'unknown')}"
+        if st.button("Generate Detailed Recycling Steps", key=btn_key):
+            with st.spinner("Analyzing material..."):
+                stream = advisor.stream_recycling_advice(result)
+            if stream is not None:
+                st.write_stream(_iter_gemini_stream(stream))
+            else:
+                st.info("AI assistant is temporarily busy. Please try again.")
+
+
+def render_heatmap(heatmap, engine: object, caption: str | None = None) -> None:
+    """Render explainable AI heatmap if available."""
+    if heatmap is None or not getattr(engine, "supports_gradcam", True):
+        return
+    st.image(heatmap, caption=caption or "Visual Attention Heatmap", width="stretch")
+
+
+def render_llm_xai_explanation(result: dict, advisor, model_type: str = "EfficientNetV2") -> None:
+    """Explain Grad-CAM visual features."""
+    if advisor is None or not getattr(advisor, "is_available", False):
+        return
+
+    with st.expander("Explain Prediction", expanded=False):
+        btn_key = f"xai_{result.get('class_label', 'unknown')}"
+        if st.button("Explain Model Focus", key=btn_key):
+            with st.spinner("Analyzing features..."):
+                stream = advisor.explain_prediction(result, model_type=model_type)
+            if stream is not None:
+                st.write_stream(_iter_gemini_stream(stream))
+
+
+def render_active_learning_badge(al_result: dict | None) -> None:
+    """Displays agreement indicator if active learning cross-check ran."""
+    if al_result is None:
+        return
+
+    gemini_label = al_result.get("gemini_label", "unknown")
+    agreement = al_result.get("agreement", True)
+    gemini_conf = al_result.get("gemini_confidence", 0.0) * 100
+    ml_conf = al_result.get("ml_confidence", 0.0)
+
+    if agreement:
+        st.markdown(
+            f"""
+            <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10B981; padding: 0.5rem 0.8rem; border-radius: 4px; margin-bottom: 0.8rem; font-size: 0.88rem; color: #D1D5DB;">
+                <b style="color:#10B981;">[AI Supervisor Verified]</b> Gemini Vision confirmed material as <b>{gemini_label.title()} ({gemini_conf:.0f}% confidence)</b>.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f"""
+            <div style="background: rgba(16, 185, 129, 0.12); border-left: 4px solid #10B981; padding: 0.5rem 0.8rem; border-radius: 4px; margin-bottom: 0.8rem; font-size: 0.88rem; color: #D1D5DB;">
+                <b style="color:#10B981;">[AI Supervisor Correction]</b> Local detection was uncertain ({ml_conf:.0f}%). Gemini Vision cross-checked and verified the item as <b>{gemini_label.title()} ({gemini_conf:.0f}% confidence)</b>.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def render_probability_chart(result: dict) -> None:
+    """Renders clean, sorted probability distribution bars."""
+    with st.expander("Material Probability Breakdown", expanded=False):
+        labels = result.get("class_names", CLASS_LABELS)
+        probs = result.get("probabilities", [])
+        paired = list(zip(labels, probs))
+        paired.sort(key=lambda x: x[1], reverse=True)
+
+        for class_name, prob in paired:
+            pct = float(prob) * 100
+            c_name, c_bar = st.columns([1, 3])
+            c_name.write(f"**{class_name.title()}**")
+            c_bar.progress(float(prob), text=f"{pct:.1f}%")
+
+
+def render_empty_state(title: str, body: str) -> None:
+    """Clean dashed placeholder."""
     st.markdown(
         f"""
-        <div class="ob-action-card">
-            <p class="ob-kicker">DISPOSAL ACTION GUIDANCE</p>
-            <h3>📍 {disposal_action}</h3>
-            <div>
-                <span class="ob-badge ob-badge-blue">Material: {label.title()}</span>
-                <span class="ob-badge ob-badge-green">{bio_label}</span>
-            </div>
+        <div class="ob-empty-state">
+            <h3>{title}</h3>
+            <p>{body}</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Classification Confidence", f"{confidence:.1f}%")
-    c2.metric("Inference Latency", f"{latency_ms:.1f} ms")
-    c3.metric("Latency Target", f"≤ {LATENCY_TARGET_MS} ms")
-    _render_latency_status(latency_ms)
 
-
-def render_disposal_guidance(result: dict) -> None:
-    label = result["class_label"]
-    meta = WASTE_METADATA.get(label)
-    if not meta:
-        st.info("No disposal metadata available for this class.")
+def render_recycling_chatbot(advisor) -> None:
+    """Sidebar recycling Q&A chatbot (collapsed under an expander to keep sidebar tidy)."""
+    if advisor is None or not getattr(advisor, "is_available", False):
         return
 
-    recyclable = meta["recyclable"]
-    recycle_text = (
-        "Yes — Fully Recyclable"
-        if recyclable is True
-        else "No — Landfill / Special Handling"
-        if recyclable is False
-        else str(recyclable)
-    )
+    with st.sidebar.expander("Recycling Q&A Chat", expanded=False):
+        if "_chat_history" not in st.session_state:
+            st.session_state["_chat_history"] = []
+            st.session_state["_chat_display"] = []
 
-    with st.container(border=True):
-        st.subheader("Disposal Instructions & Impact")
-        
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown(f"**Recommended Bin:** {meta['disposal']}")
-            st.markdown(f"**Recyclability:** {recycle_text}")
-        with c2:
-            st.markdown(f"**Decomposition Time:** {meta['decomposition']}")
-            st.markdown(f"**Material Category:** {meta['category']}")
+        for msg in st.session_state["_chat_display"]:
+            prefix = "User: " if msg["role"] == "user" else "Advisor: "
+            st.markdown(f"**{prefix}** {msg['text']}")
 
-        st.divider()
-        st.markdown("**Handling Tips**")
-        for tip in meta["tips"]:
-            st.markdown(f'<div class="ob-tip">💡 {tip}</div>', unsafe_allow_html=True)
-
-        st.caption(f"**Environmental Note:** {meta['environmental_impact']}")
+        user_input = st.chat_input("Ask a waste question...")
+        if user_input:
+            st.session_state["_chat_display"].append({"role": "user", "text": user_input})
+            stream = advisor.chat(user_input, st.session_state["_chat_history"])
+            if stream is not None:
+                response_text = "".join(chunk.text for chunk in stream if hasattr(chunk, "text"))
+                st.session_state["_chat_history"].extend([
+                    {"role": "user", "parts": [user_input]},
+                    {"role": "model", "parts": [response_text]},
+                ])
+                st.session_state["_chat_display"].append({"role": "model", "text": response_text})
+            st.rerun()
 
 
-def render_probability_chart(result: dict) -> None:
-    st.subheader("Classification Probabilities")
-    
-    # Sort probabilities for immediate functional comparison
-    paired = list(zip(CLASS_LABELS, result["probabilities"]))
-    paired.sort(key=lambda x: x[1], reverse=True)
-    
-    for class_name, prob in paired:
-        pct = float(prob) * 100
-        col_name, col_bar = st.columns([1, 3])
-        col_name.write(f"**{class_name.title()}**")
-        col_bar.progress(float(prob), text=f"{pct:.1f}%")
-
-
-def _render_latency_status(latency_ms: float) -> None:
-    if latency_ms <= LATENCY_TARGET_MS:
-        st.caption(f"✓ Latency target met ({latency_ms:.1f} ms ≤ {LATENCY_TARGET_MS} ms target).")
-    else:
-        over = latency_ms - LATENCY_TARGET_MS
-        st.caption(f"⚠ {over:.1f} ms over performance target.")
+def _iter_gemini_stream(stream):
+    """Yield text chunks from streaming Gemini responses."""
+    try:
+        for chunk in stream:
+            if hasattr(chunk, "text") and chunk.text:
+                yield chunk.text
+    except Exception:
+        return
 
 
 def _bio_label(meta: dict) -> str:
@@ -239,13 +292,4 @@ def _bio_label(meta: dict) -> str:
         return "Biodegradable"
     if bio is False:
         return "Non-biodegradable"
-    return "Mixed"
-
-
-def _bio_short(meta: dict) -> str:
-    bio = meta.get("biodegradable")
-    if bio is True:
-        return "biodegradable"
-    if bio is False:
-        return "non-biodegradable"
-    return "mixed"
+    return "Recyclable Material"

@@ -1,0 +1,15 @@
+# OpticBin - Ultralytics YOLOv8 Waste Detection Dataset Configuration
+# Standard YOLO dataset specification for unified single-stage detection & classification.
+
+path: dataset_yolo      # Dataset root directory (relative to project root or absolute)
+train: images/train     # Train images (relative to 'path')
+val: images/val         # Validation images (relative to 'path')
+test: images/test       # Optional test images (relative to 'path')
+
+# 5 Core Material Categories for OpticBin
+names:
+  0: cardboard
+  1: glass
+  2: metal
+  3: paper
+  4: plastic

@@ -1,103 +1,163 @@
 """
-Functional & theme-adaptive dashboard styles for OpticBin.
-
-Focuses on high contrast, readability, clear visual hierarchy,
-and zero flashy animations or distractors.
+Modern, streamlined styling for OpticBin dashboard.
+Focuses on clear visual hierarchy, high readability, color-coded bin guidance,
+and zero clutter.
 """
 
 import streamlit as st
 
-IMAGE_MODE = "Image Upload"
-WEBCAM_MODE = "Live Webcam"
+IMAGE_MODE = "Image File Upload"
+WEBCAM_MODE = "Camera Viewfinder"
 
 
 def apply_styles() -> None:
-    """Inject restrained, functional CSS tracking active Streamlit theme."""
+    """Inject clean, modern CSS with high contrast and intuitive visual hierarchy."""
     st.markdown(
         """
         <style>
             .block-container {
-                padding-top: 1.4rem;
-                padding-bottom: 2.5rem;
-                max-width: 1200px;
+                padding-top: 1.2rem;
+                padding-bottom: 2rem;
+                max-width: 1240px;
             }
 
             [data-testid="stHeader"] {
                 background: transparent;
             }
 
-            .ob-kicker {
-                margin: 0 0 0.25rem 0;
+            /* Header styling */
+            .ob-header-container {
+                margin-bottom: 1.2rem;
+                padding-bottom: 0.8rem;
+                border-bottom: 1px solid rgba(127, 127, 127, 0.2);
+            }
+
+            .ob-title {
+                font-size: 2.2rem;
+                font-weight: 800;
+                letter-spacing: -0.02em;
+                margin: 0;
+            }
+
+            .ob-subtitle {
+                font-size: 1rem;
+                opacity: 0.75;
+                margin: 0.2rem 0 0 0;
+            }
+
+            /* Hero Bin Recommendation Card */
+            .ob-bin-hero {
+                border-radius: 12px;
+                padding: 1.4rem 1.6rem;
+                margin-bottom: 1.2rem;
+                border: 2px solid;
+                position: relative;
+            }
+
+            .ob-bin-hero-plastic {
+                background: rgba(245, 158, 11, 0.08);
+                border-color: #F59E0B;
+            }
+
+            .ob-bin-hero-paper {
+                background: rgba(59, 130, 246, 0.08);
+                border-color: #3B82F6;
+            }
+
+            .ob-bin-hero-cardboard {
+                background: rgba(180, 83, 9, 0.08);
+                border-color: #B45309;
+            }
+
+            .ob-bin-hero-metal {
+                background: rgba(14, 165, 233, 0.08);
+                border-color: #0EA5E9;
+            }
+
+            .ob-bin-hero-glass {
+                background: rgba(16, 185, 129, 0.08);
+                border-color: #10B981;
+            }
+
+            .ob-bin-hero-biodegradable {
+                background: rgba(22, 163, 74, 0.08);
+                border-color: #16A34A;
+            }
+
+            .ob-bin-kicker {
                 font-size: 0.75rem;
                 font-weight: 700;
-                letter-spacing: 0.08em;
+                letter-spacing: 0.12em;
                 text-transform: uppercase;
-                opacity: 0.7;
+                margin-bottom: 0.3rem;
             }
 
-            .ob-action-card {
-                background: var(--secondary-background-color);
-                border: 1px solid rgba(127, 127, 127, 0.3);
-                border-radius: 8px;
-                padding: 1rem 1.25rem;
-                margin-bottom: 0.85rem;
+            .ob-bin-title {
+                font-size: 1.85rem;
+                font-weight: 800;
+                margin: 0 0 0.6rem 0;
+                line-height: 1.2;
             }
 
-            .ob-action-card h3 {
-                margin: 0.2rem 0 0.5rem 0;
-                font-size: 1.5rem;
-                font-weight: 700;
+            .ob-bin-meta-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                align-items: center;
+                margin-top: 0.6rem;
             }
 
-            .ob-badge {
+            .ob-pill {
                 display: inline-block;
                 padding: 0.25rem 0.75rem;
-                border-radius: 4px;
+                border-radius: 20px;
                 font-size: 0.85rem;
                 font-weight: 600;
+                background: rgba(127, 127, 127, 0.15);
                 border: 1px solid rgba(127, 127, 127, 0.3);
-                margin-right: 0.4rem;
             }
 
-            .ob-badge-blue {
-                background-color: rgba(59, 130, 246, 0.15);
-                color: #2563EB;
-                border-color: rgba(59, 130, 246, 0.4);
-            }
-
-            .ob-badge-green {
-                background-color: rgba(16, 185, 129, 0.15);
-                color: #059669;
-                border-color: rgba(16, 185, 129, 0.4);
-            }
-
-            .ob-badge-gray {
-                background-color: rgba(107, 114, 128, 0.15);
-                color: #4B5563;
-                border-color: rgba(107, 114, 128, 0.4);
-            }
-
-            .ob-tip {
+            /* Checklist items */
+            .ob-checklist {
                 background: var(--secondary-background-color);
-                border-left: 4px solid var(--primary-color);
-                border-radius: 0 4px 4px 0;
-                padding: 0.55rem 0.85rem;
-                margin: 0.4rem 0;
-                font-size: 0.9rem;
+                border-radius: 10px;
+                padding: 1rem 1.2rem;
+                margin-bottom: 1rem;
+                border: 1px solid rgba(127, 127, 127, 0.2);
+            }
+
+            .ob-checklist-item {
+                display: flex;
+                align-items: flex-start;
+                margin: 0.45rem 0;
+                font-size: 0.92rem;
                 line-height: 1.4;
             }
 
-            .ob-empty {
-                background: var(--secondary-background-color);
-                border: 1px dashed rgba(127, 127, 127, 0.4);
-                border-radius: 8px;
-                padding: 2rem 1.25rem;
-                text-align: center;
+            .ob-checklist-bullet {
+                margin-right: 0.6rem;
+                font-weight: bold;
+                color: #10B981;
             }
 
-            .ob-empty h4 {
-                margin: 0.3rem 0 0.3rem 0;
-                font-size: 1.15rem;
+            /* Empty state placeholder */
+            .ob-empty-state {
+                border: 2px dashed rgba(127, 127, 127, 0.35);
+                border-radius: 12px;
+                padding: 3rem 1.5rem;
+                text-align: center;
+                background: rgba(127, 127, 127, 0.04);
+            }
+
+            .ob-empty-state h3 {
+                margin: 0 0 0.5rem 0;
+                font-size: 1.25rem;
+            }
+
+            .ob-empty-state p {
+                font-size: 0.95rem;
+                opacity: 0.7;
+                margin: 0;
             }
 
             footer {

@@ -1,132 +1,99 @@
-<p align="center">
-  <img src="assets/banner.png" alt="OpticBin Banner" width="100%"/>
-</p>
-
 # OpticBin
 
-**Edge-AI Waste Classification System with Real-Time Explainable AI**
+Real-Time Edge-AI Waste Sorting Assistant
+
+OpticBin is an intelligent, high-performance waste classification and sorting system designed for real-time edge deployment. Powered by a fine-tuned Unified Single-Stage YOLOv8 architecture and accelerated by NVIDIA CUDA hardware, OpticBin simultaneously localizes waste items and classifies them into standardized material categories in under 12 milliseconds.
+
+For ambiguous edge cases, OpticBin integrates an Active Learning feedback loop backed by a multimodal Gemini Vision supervisor that validates low-confidence predictions, auto-corrects sorting recommendations, and logs edge cases for continuous fine-tuning.
 
 ---
 
 ## Table of Contents
 
-- [Executive Summary](#executive-summary)
-- [System Architecture Diagram](#system-architecture-diagram)
-- [Core Specifications](#core-specifications)
-- [Supported Waste Taxonomy](#supported-waste-taxonomy)
-- [Tech Stack](#tech-stack)
+- [Key Capabilities](#key-capabilities)
+- [System Architecture](#system-architecture)
+- [Supported Material Taxonomy](#supported-material-taxonomy)
+- [Performance Specifications](#performance-specifications)
 - [Repository Structure](#repository-structure)
-- [Getting Started](#getting-started)
-- [Dataset Preparation](#dataset-preparation)
-- [Model Training and Seeded Reproducibility](#model-training-and-seeded-reproducibility)
-- [Model Evaluation and Metrics Tracking](#model-evaluation-and-metrics-tracking)
-- [Model Parameter Comparison](#model-parameter-comparison)
-- [ONNX Export and Quantization](#onnx-export-and-quantization)
-- [Benchmarking and Testing](#benchmarking-and-testing)
-- [Explainable AI (XAI) Engine](#explainable-ai-xai-engine)
-- [Dashboard Usage](#dashboard-usage)
-- [Acceptance Verification](#acceptance-verification)
+- [Hardware and Software Requirements](#hardware-and-software-requirements)
+- [Installation and Setup](#installation-and-setup)
+- [Running the Application](#running-the-application)
+- [Model Training and Retraining](#model-training-and-retraining)
+- [Active Learning Loop](#active-learning-loop)
+- [Configuration Reference](#configuration-reference)
 - [License](#license)
 
 ---
 
-## Executive Summary
+## Key Capabilities
 
-Industrial waste sorting requires real-time, offline automated classification across diverse material types including cardboard, glass, metal, paper, and plastic. Cloud-based inference models introduce latency, bandwidth costs, and network reliability bottlenecks in industrial edge environments. Furthermore, regulatory auditing requires Explainable AI (XAI) feature maps to verify model reasoning.
-
-OpticBin is a fully offline Edge-AI pipeline that classifies 5 categories of waste using fine-tuned backbones (EfficientNetV2-S and MobileViT-XS). It offers dual inference execution paths:
-1. **PyTorch Engine:** Full inference with visual Grad-CAM heatmap generation.
-2. **ONNX Runtime Engine:** INT8-quantized execution provider optimized for sub-100ms CPU latency.
+- **Unified Single-Stage Detection**: Bounding-box localization and material classification occur simultaneously in a single forward pass, eliminating multi-stage model handoffs and latency bottlenecks.
+- **Hardware-Accelerated Inference**: Leverages NVIDIA Tensor Cores with CUDA 12.6 and Automatic Mixed Precision (AMP), achieving sub-12 ms end-to-end inference latency on modern GPUs.
+- **Active Learning Supervisor**: Automatically queries multimodal Gemini Vision when local detection confidence is low, providing real-time second opinions, dynamic auto-correction, and automatic edge-case logging.
+- **Actionable Disposal Guidance**: Every scan immediately presents color-coded Hero Destination Bin cards, material confidence metrics, and step-by-step preparation checklists (such as rinsing containers and resin code verification).
+- **Interactive Conversational Advisor**: Includes an integrated streaming recycling chatbot that answers handling questions, local municipality sorting rules, and environmental impact inquiries.
+- **Dual Input Modalities**: Supports both high-resolution image uploads and real-time live webcam capture viewfinders.
 
 ---
 
-## System Architecture Diagram
+## System Architecture
 
 ```
-+-----------------------------------------------------------------------------------+
-|                                 OpticBin System                                   |
-+-----------------------------------------------------------------------------------+
-|                                                                                   |
-|  [ Data Ingestion ]                                                               |
-|   - TrashNet 5-Class Dataset                                                      |
-|   - Script: download_dataset.py                                                   |
-
-|                               │                                                   |
-|                               ▼                                                   |
-|  [ Preprocessing & Data Pipeline ]                                                |
-|   - 224x224 Bilinear Resize & ImageNet Normalization                              |
-|   - Module: src/preprocessor.py                                                   |
-|                               │                                                   |
-|                               ▼                                                   |
-|  [ Model Backbones & Config ]                                                     |
-|   - Config: config/opticbin.yaml & config/settings.py (Seed: 42)                  |
-|   - Backbones: EfficientNetV2-S (51.1M params) & MobileViT-XS (1.94M params)      |
-|   - Factory: src/model_factory.py                                                 |
-|                               │                                                   |
-|                               ├──────────────────────────┐                        |
-|                               ▼                          ▼                        |
-|                  [ PyTorch Training Engine ]    [ Evaluation Pipeline ]           |
-|                   - train.py & src/trainer.py    - evaluate.py                    |
-|                   - AdamW + Cosine LR            - Top-1 Acc, F1, Latency         |
-|                   - Exports: models/weights/*.pt - Reports: results/*_eval.json   |
-|                               │                                                   |
-|                               ▼                                                   |
-|                  [ ONNX Export & INT8 Quant ]                                     |
-|                   - models/export_onnx.py                                         |
-|                   - Converts .pt -> .onnx -> _int8.onnx                           |
-|                               │                                                   |
-|                               ├──────────────────────────┐                        |
-|                               ▼                          ▼                        |
-|                  [ XAI Grad-CAM Engine ]        [ Production ONNX Engine ]        |
-|                   - src/xai_engine.py            - src/inference_engine.py        |
-|                   - Heatmap Overlay Generation   - Sub-100ms Classify Path        |
-|                               │                          │                        |
-|                               └────────────┬─────────────┘                        |
-|                                            ▼                                      |
-|                                 [ Streamlit UI Dashboard ]                        |
-|                                  - app.py & ui/                                   |
-|                                  - Upload & Live Webcam Modes                     |
-+-----------------------------------------------------------------------------------+
++---------------------------------------------------------------------------------+
+|                                 OpticBin System                                 |
++---------------------------------------------------------------------------------+
+|                                                                                 |
+|  [ Visual Input Source ]                                                        |
+|   - Live Webcam Snapshot or High-Resolution File Upload (JPG/PNG)               |
+|                               │                                                 |
+|                               ▼                                                 |
+|  [ Unified YOLOv8s Inference Engine ]                                           |
+|   - Architecture: YOLOv8 Small (11.2M parameters)                               |
+|   - Compute: NVIDIA GeForce RTX GPU (CUDA 12.6, FP16 AMP)                       |
+|   - Execution Latency: Sub-12 ms                                                |
+|   - Output: Coordinates, Material Class, Confidence                             |
+|                               │                                                 |
+|                               ▼                                                 |
+|  [ Confidence Arbitration & Active Learning ]                                   |
+|   - If Confidence >= 35%: Instant Local Resolution (< 12 ms)                    |
+|   - If Confidence < 35%: Query Multimodal Gemini Vision Supervisor              |
+|        - High-Confidence Supervisor Response: Dynamic UI Auto-Correction        |
+|        - Log Flagged Image & Metadata to review_queue/ for Retraining           |
+|                               │                                                 |
+|                               ▼                                                 |
+|  [ Interactive Streamlit Dashboard ]                                            |
+|   - Visual Capture with Labeled Bounding Box Overlay                            |
+|   - Color-Coded Hero Disposal Bin Card                                          |
+|   - Actionable Preparation Checklist & Environmental Decomposition Time         |
+|   - Material Probability Distribution Chart                                     |
+|   - Conversational AI Recycling Advisor                                         |
++---------------------------------------------------------------------------------+
 ```
 
 ---
 
-## Core Specifications
+## Supported Material Taxonomy
 
-| Attribute | Specification |
-|---|---|
-| Latency Target | Sub-100ms per frame (ONNX INT8 execution) |
-| System RAM Limit | Less than or equal to 2.5 GB during live stream mode |
-| Supported Classes | 5 classes (Cardboard, Glass, Metal, Paper, Plastic) |
-| Execution Mode | 100% Offline (Local CPU / CUDA support) |
-| Compression | 4x size reduction via INT8 Post-Training Quantization |
-| Explainability | Grad-CAM heatmap overlays on PyTorch execution path |
-
----
-
-## Supported Waste Taxonomy
-
-| Class Name | Target Materials and Items |
-|---|---|
-| Cardboard | Corrugated shipping boxes, paperboard packaging |
-| Glass | Glass bottles, jars, window fragments |
-| Metal | Aluminum cans, tin foil, metallic hardware |
-| Paper | Office paper, newsprint, magazines |
-| Plastic | PET bottles, HDPE containers, plastic packaging |
-
+| Material | Category | Recyclability | Disposal Destination | Key Handling Rule |
+|---|---|---|---|---|
+| Biodegradable | Organic | Fully Compostable | Compost / Organic Bin | Separate from plastics; remove packaging |
+| Cardboard | Recyclable | Widely Recyclable | Recycling Bin (Cardboard) | Flatten boxes to save space; keep dry |
+| Glass | Non-Biodegradable | Infinitely Recyclable | Recycling Bin (Glass) | Empty and rinse; separate broken glass if required |
+| Metal | Non-Biodegradable | Infinitely Recyclable | Recycling Bin (Metal) | Rinse cans; aluminum and steel are fully recyclable |
+| Paper | Recyclable | Widely Recyclable | Recycling Bin (Paper) | Keep clean and dry; remove plastic wrapping |
+| Plastic | Non-Biodegradable | Varies by Type (1, 2, 5) | Recycling Bin (Plastic) | Check resin code on base; rinse residue thoroughly |
 
 ---
 
-## Tech Stack
+## Performance Specifications
 
-| Layer | Technology | Architectural Purpose |
+| Metric | Target Specification | Achieved Performance (RTX 4060 GPU) |
 |---|---|---|
-| Deep Learning Framework | PyTorch 2.0+ & timm | Backbone feature extraction, fine-tuning, and gradient hooking |
-| Runtime Inference | ONNX Runtime (INT8) | Accelerated CPU/GPU runtime with INT8 quantized execution |
-| Explainability (XAI) | pytorch-grad-cam | Grad-CAM activation mapping on Conv and Transformer stages |
-| Computer Vision | OpenCV & torchvision | Threaded webcam frames, tensor transformations, and normalization |
-| Configuration | PyYAML & dataclass schema | Centralized YAML config parsing and schema validation |
-| Dashboard UI | Streamlit 1.28+ | Web-based interface for image uploads and live webcam stream |
+| Inference Latency | Sub-50 ms | 8 to 12 ms |
+| Preprocessing & Overlay | Sub-20 ms | 6 to 10 ms |
+| System RAM Consumption | Under 2.5 GB | Approximately 1.2 GB |
+| Detection mAP50 | Greater than 50% | 53.1% (50 Epoch Fine-Tuned Model) |
+| Local Model Autonomy | Greater than 85% | Confident classifications resolve 100% locally |
 
 ---
 
@@ -134,213 +101,187 @@ OpticBin is a fully offline Edge-AI pipeline that classifies 5 categories of was
 
 ```
 OpticBin/
+├── app.py                           # Main Streamlit application entry point
+├── train_yolo.py                    # CUDA-accelerated YOLOv8 fine-tuning pipeline
+├── add_review_sample_to_dataset.py  # Active learning feedback merger
+├── retrain_from_queue.py            # Review queue batch processing utility
+├── prepare_yolo_dataset.py          # Dataset structure validator and sample generator
+├── requirements.txt                 # Project runtime dependencies
 ├── config/
-│   ├── opticbin.yaml          # External YAML configuration (seed, LR, epochs, paths)
-│   ├── schema.py              # Dataclass validation schemas
-│   └── settings.py            # Central settings parser and default fallback bindings
-├── dataset/                   # Local dataset directory (5 waste class subfolders)
-
+│   ├── settings.py                  # Core configuration, thresholds, and metadata
+│   ├── schema.py                    # Type-safe configuration dataclasses
+│   └── waste_yolo.yaml              # YOLO dataset paths and class configuration
 ├── models/
-│   ├── benchmark.py           # Latency and memory benchmarking tool
-│   ├── export_onnx.py         # PyTorch to INT8 ONNX converter
-│   └── weights/               # Saved model checkpoints (.pt, .onnx, _int8.onnx, metrics.json)
-├── results/                   # Evaluation artifacts (JSON metrics and text summaries)
+│   ├── export_onnx.py               # ONNX runtime model export utility
+│   └── weights/
+│       ├── yolov8_waste.pt          # Fine-tuned YOLOv8s GPU weights
+│       └── yolov8_waste.onnx        # Exported high-speed ONNX model
 ├── src/
-│   ├── camera.py              # Threaded OpenCV webcam frame buffer
-│   ├── inference_engine.py    # Unified PyTorch and ONNX Runtime inference wrapper
-│   ├── model_factory.py       # Architecture factory, layer target resolver, weights loader
-│   ├── preprocessor.py        # Image preprocessor for BGR, PIL, and PyTorch inputs
-│   ├── trainer.py             # Model fine-tuning and validation engine
-│   ├── xai_engine.py          # Grad-CAM heatmap generator
-│   └── xai_renderer.py        # Heatmap blending and color map rendering
-├── tests/
-│   ├── test_config.py         # Unit tests for configuration schema validation
-│   ├── test_model_factory.py  # Unit tests for architecture instantiation
-│   ├── test_optic.py          # End-to-end integration tests
-│   └── test_preprocessor.py   # Unit tests for preprocessing transformations
+│   ├── yolo_unified_engine.py       # Single-stage YOLOv8 inference engine
+│   ├── inference_engine.py          # Abstract engine interface and PredictionResult
+│   ├── active_learner.py            # Multimodal Gemini Vision supervisor
+│   ├── llm_advisor.py               # Streaming recycling advisory assistant
+│   ├── camera.py                    # Threaded webcam capture handler
+│   ├── preprocessor.py              # Image normalization and PIL transforms
+│   └── yolo_cropper.py              # Visual bounding-box overlay utilities
 ├── ui/
-│   ├── components.py          # Dashboard UI components, sidebar controls, metrics cards
-│   ├── image_view.py          # Single image upload and evaluation view
-│   ├── state_manager.py       # Streamlit session state management
-│   ├── styles.py              # Custom CSS layout styling
-│   └── webcam_view.py         # Live webcam classification view
-├── app.py                     # Streamlit application entrypoint
-├── check_params.py            # Model parameter inspector tool
-├── download_dataset.py        # Dataset downloader and aggregator script
-├── download_new_classes.py    # E-waste and organic dataset downloader
-├── evaluate.py                # Model evaluation and metrics generation CLI
-├── fix_dataset.py             # Dataset verification and repair tool
-├── requirements.txt           # Production Python dependencies
-├── requirements-dev.txt       # Development and testing dependencies
-├── train.py                   # Model training and fine-tuning CLI
-├── .gitignore
-├── LICENSE
-└── README.md
+│   ├── components.py                # Hero cards, checklists, and active learning badges
+│   ├── image_view.py                # Upload image analysis view
+│   ├── webcam_view.py               # Live camera viewfinder view
+│   ├── styles.py                    # Dark-mode theme, CSS variables, and cards
+│   └── state_manager.py             # Session statistics tracker
+├── dataset_roboflow/                # YOLO annotated dataset (7,340 images)
+└── review_queue/                    # Logged edge-case scans for continuous learning
 ```
 
 ---
 
-## Getting Started
+## Hardware and Software Requirements
 
-### Prerequisites
+- **Operating System**: Windows 10/11 or Ubuntu 20.04/22.04 LTS
+- **Python**: Version 3.10 to 3.13
+- **GPU (Recommended for Real-Time Speed)**: NVIDIA GeForce RTX GPU with CUDA 12.x support (e.g., RTX 3060, RTX 4060 or higher with 8+ GB VRAM)
+- **CPU**: Multi-core processor (Intel Core i5/i7/i9 or AMD Ryzen 5/7/9)
+- **RAM**: Minimum 8 GB (16 GB recommended)
 
-- Python 3.10 to 3.13
-- CUDA 11.8+ (optional, CPU execution fully supported)
-- Webcam (optional, for live webcam classification mode)
+---
 
-### Installation
+## Installation and Setup
+
+### 1. Clone the Repository
 
 ```bash
-# 1. Clone repository
 git clone https://github.com/sreejithpa21112006/OpticBin.git
 cd OpticBin
+```
 
-# 2. Create virtual environment
+### 2. Create and Activate a Virtual Environment
+
+On Windows (PowerShell):
+```powershell
 python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
 
-# Activate on Windows:
-.venv\Scripts\activate
-
-# Activate on Linux / macOS:
+On Linux / macOS:
+```bash
+python3 -m venv .venv
 source .venv/bin/activate
+```
 
-# 3. Install dependencies
+### 3. Install PyTorch with CUDA Support
+
+For NVIDIA GPU acceleration (CUDA 12.6):
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+```
+
+For CPU-only environments:
+```bash
+pip install torch torchvision
+```
+
+### 4. Install Dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
----
+### 5. Configure Optional API Key
 
-## Dataset Preparation
+To enable the interactive AI Recycling Advisor and Active Learning cross-checks:
+- Obtain a free API key from Google AI Studio (aistudio.google.com).
+- Provide the key via Streamlit secrets (`.streamlit/secrets.toml`):
 
-To download and structure the 5-class dataset automatically:
-
-```bash
-python download_dataset.py
+```toml
+GEMINI_API_KEY = "AIzaSy..."
 ```
 
-This populates the `dataset/` directory with class subfolders: `cardboard`, `glass`, `metal`, `paper`, and `plastic`.
-
-
----
-
-## Model Training and Seeded Reproducibility
-
-Train models using CLI flags or default settings from `config/opticbin.yaml`:
-
+Alternatively, set the environment variable:
 ```bash
-# Train EfficientNetV2-S with global seed
-python train.py --model efficientnetv2_s --epochs 15 --batch_size 32 --seed 42
-
-# Train MobileViT-XS
-python train.py --model mobilevit_xs --epochs 15 --batch_size 32 --seed 42
-
-# Train all backbones sequentially
-python train.py --model all --epochs 15 --seed 42
+export GEMINI_API_KEY="AIzaSy..."     # Linux/macOS
+$env:GEMINI_API_KEY="AIzaSy..."       # Windows PowerShell
 ```
 
-Reproducibility is guaranteed by `set_global_seed()`, which explicitly sets random seeds across Python `random`, `numpy`, PyTorch CPU, and PyTorch CUDA backends.
+The API key can also be entered interactively in the application sidebar at runtime.
 
 ---
 
-## Model Evaluation and Metrics Tracking
+## Running the Application
 
-Run evaluation on a stratified held-out test split:
-
-```bash
-# Evaluate EfficientNetV2-S
-python evaluate.py --model efficientnetv2_s --data_dir dataset --seed 42
-
-# Evaluate MobileViT-XS
-python evaluate.py --model mobilevit_xs --data_dir dataset --seed 42
-
-# Evaluate all models and generate combined report
-python evaluate.py --model all --data_dir dataset --seed 42
-```
-
-Evaluation outputs are persisted in the `results/` directory:
-- `results/efficientnetv2_s_eval.json`: Detailed JSON containing Top-1 accuracy, per-class F1, macro F1, latency, and confusion matrix.
-- `results/efficientnetv2_s_eval_summary.txt`: Plain-text evaluation report.
-
----
-
-## Model Parameter Comparison
-
-OpticBin supports two backbone options evaluated with `check_params.py`:
-
-| Backbone Model | Total Parameters | Trainable Parameters (GPU) | Trainable Parameters (CPU) | Primary Strengths |
-|---|---|---|---|---|
-| **EfficientNetV2-S** | 51,100,666 (~51.1M) | 51,100,666 (100%) | 39,216,694 (76.7%) | Maximum surface texture accuracy |
-| **MobileViT-XS** | 1,935,928 (~1.94M) | 1,935,928 (100%) | 739,864 (38.2%) | Ultra-lightweight edge deployment |
-
----
-
-## ONNX Export and Quantization
-
-Export PyTorch weights (`.pt`) to optimized ONNX format with Post-Training Quantization (PTQ):
-
-```bash
-python models/export_onnx.py \
-    --pt_path models/weights/efficientnetv2_s.pt \
-    --onnx_out models/weights/efficientnetv2_s.onnx \
-    --quant_out models/weights/efficientnetv2_s_int8.onnx \
-    --model efficientnetv2_s
-```
-
-Quantization results in ~4x footprint reduction:
-- `efficientnetv2_s.pt` (206 MB) -> `efficientnetv2_s_int8.onnx` (52 MB)
-- `mobilevit_xs.pt` (7.9 MB) -> `mobilevit_xs_int8.onnx` (2.4 MB)
-
----
-
-## Benchmarking and Testing
-
-Run unit tests and latency benchmarks:
-
-```bash
-# Execute unit test suite
-python -m unittest discover tests
-
-# Benchmark inference latency and memory
-python models/benchmark.py --iterations 100
-```
-
----
-
-## Explainable AI (XAI) Engine
-
-Grad-CAM target layers are hooked dynamically:
-- **EfficientNetV2-S Target Layer:** `conv_head`
-- **MobileViT-XS Target Layer:** `final_conv`
-
-The XAI engine overlays class-activation heatmaps onto original input frames, allowing visual audit of object regions driving classification decisions.
-
----
-
-## Dashboard Usage
-
-Launch the Streamlit web dashboard:
+Launch the Streamlit dashboard:
 
 ```bash
 streamlit run app.py
 ```
 
-### Modes of Operation
-1. **Single Image Upload Mode:** Upload JPG, PNG, or WebP images to visualize classification predictions, confidence scores, and Grad-CAM heatmaps.
-2. **Live Webcam Stream Mode:** Real-time webcam inference with dual-column view (live video feed alongside live heatmap updates).
+Once started, open your web browser to:
+```
+http://localhost:8501
+```
+
+### Application Features:
+- **Scan Mode Selection**: Switch between **Live Camera Viewfinder** (webcam snapshot or stream) and **Upload Waste Image** (JPG, PNG, WebP).
+- **Hero Recommendation Card**: Displays the designated recycling or disposal destination with material-specific color themes.
+- **Disposal Instructions**: Step-by-step preparation tips and estimated decomposition timelines.
+- **Attention Heatmap & Bounding Box**: Highlights the detected item with class name and confidence score.
+- **AI Recycling Assistant**: Expandable sidebar assistant to answer specific recycling questions.
 
 ---
 
-## Acceptance Verification
+## Model Training and Retraining
 
-| ID | Scenario | Expected Outcome | Verification Method |
-|---|---|---|---|
-| AC-1 | Held-out test evaluation | Accuracy and per-class metrics reported in results directory | `python evaluate.py --model all` |
-| AC-2 | Model switching in UI | Hot-swapping backbones in Streamlit sidebar without app restart | App UI sidebar selection |
-| AC-3 | Offline execution | Operational without active internet connection | Disconnect network and run `app.py` |
-| AC-4 | INT8 Model Quantization | Size reduction and INT8 ONNX export | `python models/export_onnx.py` |
+### Train YOLOv8 on GPU
+
+The training pipeline uses Automatic Mixed Precision (AMP), cosine learning rate decay, and data augmentations (HSV saturation/value variation and mosaic transforms):
+
+```bash
+python train_yolo.py --model yolov8s.pt --epochs 50 --batch_size 16 --device 0
+```
+
+### Command Arguments:
+- `--model`: Base checkpoint (`yolov8s.pt` for 11.2M parameters or `yolov8n.pt` for 3.2M parameters).
+- `--epochs`: Number of training iterations (default: 50).
+- `--batch_size`: Batch size per step (default: 16).
+- `--device`: Target device (`0` for primary NVIDIA GPU, `cpu` for CPU fallback).
+- `--imgsz`: Input resolution (default: 640).
+
+The best checkpoint is automatically saved to `models/weights/yolov8_waste.pt` and exported to ONNX format.
+
+---
+
+## Active Learning Loop
+
+OpticBin incorporates a continuous improvement pipeline:
+
+1. **Uncertainty Flagging**: When local detection confidence falls below the calibrated threshold (`0.35`), the active learning pipeline triggers a supervisor review.
+2. **Multimodal Supervisor Cross-Check**: Gemini Vision independently inspects the high-resolution image and returns a detailed assessment with class and confidence scores.
+3. **Dynamic UI Auto-Correction**: If the supervisor returns a high-confidence determination (>= 70%), the recommendation card, checklist, and bounding box dynamically update to reflect the verified classification.
+4. **Queue Logging**: The image, prediction metadata, and supervisor reasoning are logged to `review_queue/`.
+5. **Continuous Retraining**: Incorporate all verified review queue samples into the training dataset with a single command:
+
+```bash
+python add_review_sample_to_dataset.py
+```
+
+Once merged, rerun `train_yolo.py` to retrain the local model with the new real-world edge cases.
+
+---
+
+## Configuration Reference
+
+Key application parameters can be tuned in `config/settings.py`:
+
+| Parameter | Default Value | Description |
+|---|---|---|
+| `ACTIVE_LEARNING_CONFIDENCE_THRESHOLD` | `0.35` | Predictions below this threshold trigger the supervisor cross-check |
+| `DEFAULT_MODEL` | `"yolov8_unified"` | Active inference engine architecture |
+| `LLM_MODEL` | `"gemini-2.5-flash"` | Gemini model used for supervisor checks and conversational advice |
+| `LATENCY_TARGET_MS` | `100` | Target end-to-end latency budget |
+| `MAX_RAM_GB` | `2.5` | Memory ceiling during continuous webcam streaming |
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the terms of the [MIT License](LICENSE).

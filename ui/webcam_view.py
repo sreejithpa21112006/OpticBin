@@ -1,4 +1,7 @@
-"""Live webcam classification with snapshot capture and a non-blocking stream."""
+"""
+Streamlined live camera classification for OpticBin.
+Features a reliable camera input, clean visual target overlay, and instant hero bin recommendations.
+"""
 
 from __future__ import annotations
 
@@ -10,105 +13,153 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 
+from config.settings import CLASS_LABELS
 from src.camera import CameraError, ThreadedCameraStream
 from src.preprocessor import preprocess_frame, preprocess_pil
+from src.yolo_cropper import detect_and_annotate_yolo
 from ui.components import (
+    render_active_learning_badge,
     render_disposal_guidance,
     render_empty_state,
     render_heatmap,
+    render_llm_xai_explanation,
     render_prediction_summary,
     render_probability_chart,
     render_untrained_warning,
 )
 from ui.state_manager import SessionTracker, SnapshotStateManager
 
-DEFAULT_XAI_INTERVAL = 5
 _STREAM_KEY = "_opticbin_camera_stream"
 _FRAME_KEY = "_opticbin_stream_frame_index"
 _HEATMAP_KEY = "_opticbin_last_heatmap"
 
 
-def render_webcam_view(engine: Any) -> None:
-    st.subheader("Live Camera & Snapshot View")
-    st.caption("Target your item in the viewfinder and capture for instant AI disposal analysis.")
+def render_webcam_view(engine: Any, advisor=None, active_learner=None) -> None:
+    """Render the simplified camera-based classification interface."""
     render_untrained_warning(engine)
 
     mode = st.radio(
-        "Operation Mode",
-        options=["Interactive Camera Viewfinder", "Continuous Stream Mode"],
+        "Capture Method",
+        ["Photo Snapshot", "Continuous Stream"],
         horizontal=True,
+        label_visibility="collapsed",
     )
 
-    if "Viewfinder" in mode:
-        _stop_stream()
-        _render_snapshot_mode(engine)
+    if mode == "Photo Snapshot":
+        _render_snapshot_mode(engine, advisor=advisor, active_learner=active_learner)
     else:
         _render_continuous_stream_mode(engine)
 
-    _render_session_statistics()
 
+def _render_snapshot_mode(engine: Any, advisor=None, active_learner=None) -> None:
+    """Clear, distraction-free photo capture with visual detection overlay."""
+    photo = st.camera_input("Aim camera at waste item and take a photo", label_visibility="collapsed")
 
-def _render_snapshot_mode(engine: Any) -> None:
-    st.info("Aim the webcam at the item in the viewfinder, then click **Take Photo**.")
-
-    camera_photo = st.camera_input("Camera Viewfinder", label_visibility="collapsed")
-
-    if camera_photo is None:
+    if photo is None:
         render_empty_state(
             "Camera Viewfinder Ready",
-            "Point your camera at an item in the box above and click 'Take Photo' to capture.",
+            "Point your webcam at any waste item and click 'Take Photo' to classify and view disposal guidance.",
         )
         return
+
+    image = Image.open(photo)
 
     try:
-        image = Image.open(camera_photo)
-        started = time.perf_counter()
-        input_tensor, rgb_float = preprocess_pil(image)
-        result = engine.explain(input_tensor, rgb_float)
-        latency_ms = (time.perf_counter() - started) * 1000
-
-        frame_np = np.array(image.convert("RGB"))
-        SnapshotStateManager.save(result, frame_np, latency_ms)
-        SessionTracker.add_scan(result["class_label"], result["confidence"], latency_ms)
+        with st.spinner("Analyzing waste item..."):
+            started = time.perf_counter()
+            rgb_float = np.array(image.convert("RGB"), dtype=np.float32) / 255.0
+            result = engine.predict_and_explain(image, rgb_float)
+            latency_ms = (time.perf_counter() - started) * 1000
+            SessionTracker.add_scan(result["class_label"], result["confidence"], latency_ms)
     except Exception as exc:
-        st.error(f"Analysis failed: {exc}")
+        st.error(f"Scan analysis failed: {exc}")
         return
 
-    st.success("Object captured and analyzed.")
+    # Active learning cross-check if low confidence
+    al_result = None
+    if active_learner is not None and active_learner.should_cross_check(result):
+        with st.spinner("Cross-checking low confidence scan with AI supervisor..."):
+            al_result = active_learner.verify_with_gemini_vision(image, result)
+            if al_result is not None:
+                active_learner.log_to_review_queue(image, result, al_result)
+                # Apply high-confidence second opinion to correct low-confidence edge scans
+                if not al_result.get("agreement") and al_result.get("gemini_confidence", 0.0) >= 0.70:
+                    result["class_label"] = al_result["gemini_label"]
+                    result["confidence"] = al_result["gemini_confidence"]
+                    result["corrected_by_gemini"] = True
 
-    feed_col, heatmap_col = st.columns(2)
-    feed_col.image(image, caption="Captured Object", width="stretch")
-    with heatmap_col:
-        render_heatmap(
-            result.get("heatmap_overlay"),
-            engine,
-            caption=f"Explanation ({result['class_label'].title()})",
-        )
+                    # Update probability distribution
+                    active_classes = result.get("class_names", CLASS_LABELS)
+                    if al_result["gemini_label"] in active_classes:
+                        idx = active_classes.index(al_result["gemini_label"])
+                        rem = max(0.0, 1.0 - al_result["gemini_confidence"])
+                        probs = [rem / max(1, len(active_classes) - 1)] * len(active_classes)
+                        probs[idx] = al_result["gemini_confidence"]
+                        result["probabilities"] = probs
 
-    render_prediction_summary(result, latency_ms, compact=False)
+                    # Update visual bounding box overlay
+                    if hasattr(engine, "render_overlay"):
+                        box = result.get("primary_box")
+                        result["heatmap_overlay"] = engine.render_overlay(
+                            image,
+                            box=box,
+                            label=al_result["gemini_label"],
+                            confidence=al_result["gemini_confidence"],
+                            subtitle="AI Verified",
+                        )
+                elif al_result.get("agreement") and al_result.get("gemini_confidence", 0.0) >= 0.70:
+                    result["confidence"] = max(result.get("confidence", 0.0), al_result["gemini_confidence"])
+                    result["verified_by_gemini"] = True
+                    if hasattr(engine, "render_overlay"):
+                        box = result.get("primary_box")
+                        result["heatmap_overlay"] = engine.render_overlay(
+                            image,
+                            box=box,
+                            label=result["class_label"],
+                            confidence=result["confidence"],
+                            subtitle="AI Verified",
+                        )
 
-    c1, c2 = st.columns(2)
-    with c1:
-        render_disposal_guidance(result)
-    with c2:
+    # 2-Column User-First Layout
+    col_visual, col_guidance = st.columns([1.1, 1])
+
+    with col_visual:
+        st.markdown("### Captured Target")
+        if result.get("heatmap_overlay") is not None:
+            caption_tag = " - AI Supervisor Verified" if (result.get("corrected_by_gemini") or result.get("verified_by_gemini")) else ""
+            st.image(
+                result["heatmap_overlay"],
+                caption=f"Target Detected: {result['class_label'].title()} ({result['confidence']*100:.0f}%){caption_tag}",
+                width="stretch",
+            )
+        else:
+            st.image(image, caption="Captured Frame", width="stretch")
+
+        with st.expander("Inspection: Model Crop & Heatmap", expanded=False):
+            crop_display = (np.clip(rgb_float, 0.0, 1.0) * 255.0).astype(np.uint8)
+            t1, t2 = st.tabs(["224x224 Model Input", "Attention Heatmap"])
+            with t1:
+                st.image(crop_display, caption="Preprocessed Normalized Crop", width="stretch")
+            with t2:
+                render_heatmap(result.get("heatmap_overlay"), engine)
+            render_llm_xai_explanation(result, advisor, model_type=getattr(engine, "model_type", "EfficientNetV2"))
+
+    with col_guidance:
+        st.markdown("### Sorting Guidance")
+        render_active_learning_badge(al_result)
+        render_prediction_summary(result, latency_ms)
         render_probability_chart(result)
+        render_disposal_guidance(result, advisor)
 
 
 def _render_continuous_stream_mode(engine: Any) -> None:
-    xai_interval = st.slider(
-        "Explain every N frames",
-        min_value=1,
-        max_value=15,
-        value=DEFAULT_XAI_INTERVAL,
-        help="Refreshes Grad-CAM periodically so classification can stay near real time.",
-    )
-
-    running = st.toggle("Enable Live Camera Stream", value=False)
+    """Continuous video feed mode with graceful start/stop."""
+    running = st.toggle("Activate Live Camera Stream", value=False)
     if not running:
         _stop_stream()
         render_empty_state(
-            "Camera Stream Paused",
-            "Toggle 'Enable Live Camera Stream' to classify items continuously in real time.",
+            "Live Stream Inactive",
+            "Toggle 'Activate Live Camera Stream' to classify items continuously in real time.",
         )
         return
 
@@ -118,11 +169,12 @@ def _render_continuous_stream_mode(engine: Any) -> None:
         st.error(str(exc))
         return
 
-    _render_live_stream_fragment(engine, xai_interval)
+    _render_live_stream_fragment(engine)
 
 
-@st.fragment(run_every=0.2)
-def _render_live_stream_fragment(engine: Any, xai_interval: int) -> None:
+@st.fragment(run_every=0.25)
+def _render_live_stream_fragment(engine: Any) -> None:
+    """Lightweight real-time stream fragment."""
     stream: ThreadedCameraStream | None = st.session_state.get(_STREAM_KEY)
     if stream is None:
         return
@@ -130,38 +182,27 @@ def _render_live_stream_fragment(engine: Any, xai_interval: int) -> None:
     try:
         frame = stream.read_latest()
     except CameraError:
-        st.info("Waiting for the first camera frame...")
+        st.info("Connecting to camera stream...")
         return
 
     input_tensor, rgb_float = preprocess_frame(frame)
-    frame_index = int(st.session_state.get(_FRAME_KEY, 0))
-    explain_this_frame = frame_index % max(1, xai_interval) == 0
-    st.session_state[_FRAME_KEY] = frame_index + 1
-
     started = time.perf_counter()
-    if explain_this_frame and getattr(engine, "supports_gradcam", False):
-        result = engine.explain(input_tensor, rgb_float)
-        st.session_state[_HEATMAP_KEY] = result.get("heatmap_overlay")
-        log_scan = True
-    else:
-        result = engine.predict(input_tensor)
-        if hasattr(result, "to_dict"):
-            result = result.to_dict()
-        log_scan = False
+    result = engine.predict(input_tensor)
+    if hasattr(result, "to_dict"):
+        result = result.to_dict()
     latency_ms = (time.perf_counter() - started) * 1000
-    if log_scan:
-        SessionTracker.add_scan(result["class_label"], result["confidence"], latency_ms)
 
     display_frame = cv2.cvtColor(cv2.resize(frame, (448, 448)), cv2.COLOR_BGR2RGB)
-    feed_col, heatmap_col = st.columns(2)
-    feed_col.image(display_frame, caption="Live Stream Feed", width="stretch")
-    with heatmap_col:
-        render_heatmap(st.session_state.get(_HEATMAP_KEY), engine, caption="Latest Grad-CAM")
 
-    render_prediction_summary(result, latency_ms, compact=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.image(display_frame, caption="Real-Time Feed", width="stretch")
+    with col2:
+        render_prediction_summary(result, latency_ms, compact=True)
 
 
 def _ensure_stream() -> ThreadedCameraStream:
+    """Ensure stream is running."""
     stream = st.session_state.get(_STREAM_KEY)
     if stream is None or not stream.is_running():
         stream = ThreadedCameraStream(device_index=0).start()
@@ -172,30 +213,8 @@ def _ensure_stream() -> ThreadedCameraStream:
 
 
 def _stop_stream() -> None:
-    stream = st.session_state.pop(_STREAM_KEY, None)
-    st.session_state.pop(_FRAME_KEY, None)
-    st.session_state.pop(_HEATMAP_KEY, None)
+    """Safely terminate camera thread."""
+    stream = st.session_state.get(_STREAM_KEY)
     if stream is not None:
         stream.stop()
-
-
-def _render_session_statistics() -> None:
-    stats = SessionTracker.get_stats()
-    if stats["total"] == 0:
-        return
-
-    st.divider()
-    with st.expander(f"Session Log ({stats['total']} items scanned)", expanded=False):
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total Items Scanned", stats["total"])
-        c2.metric("Recyclable Items", stats["recyclable_count"])
-        c3.metric("Recycling Percentage", f"{stats['recyclable_pct']:.1f}%")
-
-        st.subheader("Breakdown by Material")
-        cols = st.columns(len(stats["counts"]))
-        for col, (lbl, cnt) in zip(cols, stats["counts"].items()):
-            col.metric(lbl.title(), cnt)
-
-        if st.button("Clear Session Log"):
-            SessionTracker.clear_history()
-            st.rerun()
+        st.session_state[_STREAM_KEY] = None

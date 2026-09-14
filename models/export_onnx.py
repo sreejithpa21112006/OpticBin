@@ -87,7 +87,7 @@ def export_to_onnx_int8(
     )
     _consolidate_for_quantization(output_onnx_path)
     fp32_size_mb = Path(output_onnx_path).stat().st_size / (1024 * 1024)
-    print(f"[✓] FP32 ONNX exported ({resolved_type}) → {output_onnx_path} ({fp32_size_mb:.2f} MB)")
+    print(f"[OK] FP32 ONNX exported ({resolved_type}) -> {output_onnx_path} ({fp32_size_mb:.2f} MB)")
 
     quantize_dynamic(
         model_input=output_onnx_path,
@@ -95,7 +95,7 @@ def export_to_onnx_int8(
         weight_type=QuantType.QUInt8,
     )
     int8_size_mb = Path(quantized_onnx_path).stat().st_size / (1024 * 1024)
-    print(f"[✓] INT8 quantized ONNX exported → {quantized_onnx_path} ({int8_size_mb:.2f} MB)")
+    print(f"[OK] INT8 quantized ONNX exported -> {quantized_onnx_path} ({int8_size_mb:.2f} MB)")
     print("Export and Quantization successfully completed.")
 
 
