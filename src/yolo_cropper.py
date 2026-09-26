@@ -342,7 +342,7 @@ def _find_target_object(
     """
     img_h, img_w = img_arr.shape[:2]
     img_bgr = cv2.cvtColor(img_arr, cv2.COLOR_RGB2BGR)
-    results = model.predict(img_arr, conf=conf_threshold, verbose=False)
+    results = model.predict(img_bgr, conf=conf_threshold, verbose=False)
 
     boxes = results[0].boxes if results and len(results[0].boxes) > 0 else []
     person_list: list[dict] = []

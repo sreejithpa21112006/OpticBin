@@ -1,6 +1,8 @@
 """
-Streamlined image-upload classification view for OpticBin.
-Presents a clear 2-column layout: Visual Capture on the left, Hero Disposal Guidance on the right.
+OpticBin — Image Upload Classification View
+================================================
+Premium 2-column layout: Visual Capture on the left, Hero Disposal Guidance on the right.
+Supports the 3-bin degradability taxonomy with rich visual overlays.
 """
 
 from __future__ import annotations
@@ -29,26 +31,26 @@ from ui.state_manager import SessionTracker
 
 
 def render_image_view(engine: Any, advisor=None, active_learner=None) -> None:
-    """Render a clean, uncluttered image analysis workflow."""
+    """Render the premium image analysis workflow."""
     render_untrained_warning(engine)
 
     uploaded_file = st.file_uploader(
         "Upload Waste Image",
         type=["jpg", "jpeg", "png", "bmp", "webp"],
-        help="Upload an image of waste material to identify its disposal category.",
+        help="Upload a photo of any waste item to identify which bin it belongs to.",
     )
 
     if uploaded_file is None:
         render_empty_state(
-            "Ready for Image",
-            "Upload or drag-and-drop any waste item photo (plastic, paper, glass, metal, cardboard) to scan.",
+            "📸 Ready to Scan",
+            "Upload or drag-and-drop any waste item photo to instantly identify the correct disposal bin.",
         )
         return
 
     image = Image.open(uploaded_file)
 
     try:
-        with st.spinner("Classifying waste item..."):
+        with st.spinner("🔍 Analyzing waste item..."):
             started = time.perf_counter()
             rgb_float = np.array(image.convert("RGB"), dtype=np.float32) / 255.0
             result = engine.predict_and_explain(image, rgb_float)
@@ -61,7 +63,7 @@ def render_image_view(engine: Any, advisor=None, active_learner=None) -> None:
     # Active learning: verify with Gemini Vision if confidence is low
     al_result = None
     if active_learner is not None and active_learner.should_cross_check(result):
-        with st.spinner("Cross-checking low confidence scan with AI supervisor..."):
+        with st.spinner("🤖 Cross-checking with AI supervisor..."):
             al_result = active_learner.verify_with_gemini_vision(image, result)
             if al_result is not None:
                 active_learner.log_to_review_queue(image, result, al_result)
@@ -103,33 +105,40 @@ def render_image_view(engine: Any, advisor=None, active_learner=None) -> None:
                             subtitle="AI Verified",
                         )
 
-    # 2-Column User-First Layout
+    # 2-Column Premium Layout
     col_visual, col_guidance = st.columns([1.1, 1])
 
     with col_visual:
-        st.markdown("### Captured Item")
+        st.markdown('<div class="ob-section-title">🖼️ Captured Item</div>', unsafe_allow_html=True)
         if result.get("heatmap_overlay") is not None:
-            caption_tag = " - AI Supervisor Verified" if (result.get("corrected_by_gemini") or result.get("verified_by_gemini")) else ""
+            verified_tag = " — AI Verified ✨" if (result.get("corrected_by_gemini") or result.get("verified_by_gemini")) else ""
+            # Display name for caption
+            display_label = {
+                "biodegradable": "Biodegradable 🟢",
+                "non-biodegradable": "Non-Biodegradable 🔵",
+                "e-waste": "E-Waste 🟠",
+            }.get(result["class_label"], result["class_label"].title())
+
             st.image(
                 result["heatmap_overlay"],
-                caption=f"Target Detected: {result['class_label'].title()} ({result['confidence']*100:.0f}%){caption_tag}",
+                caption=f"Detected: {display_label} ({result['confidence']*100:.0f}%){verified_tag}",
                 width="stretch",
             )
         else:
             st.image(image, caption="Uploaded Image", width="stretch")
 
-        # Collapsible technical vision details (optional)
-        with st.expander("Inspection: Model Crop & Heatmap", expanded=False):
+        # Collapsible technical details
+        with st.expander("🔬 Technical Inspection", expanded=False):
             crop_display = (np.clip(rgb_float, 0.0, 1.0) * 255.0).astype(np.uint8)
-            t1, t2 = st.tabs(["224x224 Model Input", "Attention Heatmap"])
+            t1, t2 = st.tabs(["Model Input", "Detection Overlay"])
             with t1:
-                st.image(crop_display, caption="Preprocessed Normalized Crop", width="stretch")
+                st.image(crop_display, caption="Preprocessed Input", width="stretch")
             with t2:
                 render_heatmap(result.get("heatmap_overlay"), engine)
-            render_llm_xai_explanation(result, advisor, model_type=getattr(engine, "model_type", "EfficientNetV2"))
+            render_llm_xai_explanation(result, advisor, model_type=getattr(engine, "model_type", "YOLOv8"))
 
     with col_guidance:
-        st.markdown("### Sorting Guidance")
+        st.markdown('<div class="ob-section-title">🗑️ Sorting Guidance</div>', unsafe_allow_html=True)
         render_active_learning_badge(al_result)
         render_prediction_summary(result, latency_ms)
         render_probability_chart(result)

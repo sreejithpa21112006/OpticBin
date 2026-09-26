@@ -1,6 +1,8 @@
 """
 OpticBin — Streamlit Dashboard
 ================================
+AI-Powered Home Waste Sorting — 3-Bin Degradability System.
+
 Launch:
     streamlit run app.py
 """
@@ -15,6 +17,7 @@ from ui.components import (
     render_engine_status,
     render_header,
     render_recycling_chatbot,
+    render_scan_stats,
     render_sidebar,
 )
 from ui.image_view import render_image_view
@@ -22,7 +25,8 @@ from ui.styles import IMAGE_MODE, apply_styles
 from ui.webcam_view import render_webcam_view
 
 st.set_page_config(
-    page_title="OpticBin - Edge-AI Waste Classifier",
+    page_title="OpticBin — AI Home Waste Sorter",
+    page_icon="♻️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -76,10 +80,10 @@ def _render_api_key_input() -> str | None:
 
     # Prompt the user
     st.sidebar.divider()
-    st.sidebar.subheader("Gemini API Key")
+    st.sidebar.markdown("##### 🔑 Gemini API Key")
     st.sidebar.caption(
-        "Optional: Enables AI Assistant and active learning cross-checks. "
-        "Get a free key at aistudio.google.com."
+        "Optional: Enables AI Assistant and active learning. "
+        "Get a free key at [aistudio.google.com](https://aistudio.google.com)."
     )
     key_input = st.sidebar.text_input(
         "Gemini API Key",
@@ -107,17 +111,24 @@ def main() -> None:
     advisor = load_advisor(api_key)
     active_learner = load_active_learner(api_key)
 
-    # Sidebar chatbot
+    # Sidebar features
     render_recycling_chatbot(advisor)
+    render_scan_stats()
 
     if input_mode == IMAGE_MODE:
         render_image_view(engine, advisor=advisor, active_learner=active_learner)
     else:
         render_webcam_view(engine, advisor=advisor, active_learner=active_learner)
 
-    st.divider()
-    st.caption(
-        "OpticBin v1.2.0 - Edge-AI Waste Classifier and Instant Sorting Guidance."
+    # Premium footer
+    st.markdown(
+        """
+        <div class="ob-footer">
+            OpticBin v2.0.0 — AI-Powered Home Waste Sorting &nbsp;·&nbsp;
+            🟢 Biodegradable &nbsp;·&nbsp; 🔵 Non-Biodegradable &nbsp;·&nbsp; 🟠 E-Waste
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
 

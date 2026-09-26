@@ -91,12 +91,16 @@ No jargon.
 
 _CHATBOT_SYSTEM_PROMPT = """\
 You are OpticBin's Recycling Assistant — a friendly, knowledgeable expert on \
-waste management, sustainability, and recycling for the OpticBin Edge-AI system.
+waste management, sustainability, and recycling for the OpticBin home waste sorting system.
 
-OpticBin classifies 5 waste categories: cardboard, glass, metal, paper, plastic.
+OpticBin classifies waste into 3 categories based on degradability:
+- Biodegradable (green bin): food scraps, paper, cardboard, garden waste, wood, cotton
+- Non-Biodegradable (blue bin): plastics, glass, metals, rubber, ceramics, synthetic fabrics
+- E-Waste (orange / collection center): batteries, electronics, cables, circuit boards, phones
 
 Answer questions about:
 - How to recycle or dispose of specific items
+- Which bin an item goes into
 - Environmental impact of different materials
 - Recycling rules and common misconceptions
 - How the AI model works (if asked)
@@ -199,9 +203,9 @@ class GeminiAdvisor:
         except Exception:
             return None
 
-    def stream_xai_explanation(self, result: dict, model_type: str = "EfficientNetV2") -> Iterator[str] | None:
+    def stream_xai_explanation(self, result: dict, model_type: str = "YOLOv8") -> Iterator[str] | None:
         """
-        Stream a plain-English explanation of what the Grad-CAM heatmap means.
+        Stream a plain-English explanation of what the model detection means.
 
         Args:
             result:     classification result dict
@@ -238,6 +242,9 @@ class GeminiAdvisor:
             return model.generate_content(prompt, stream=True)
         except Exception:
             return None
+
+    # Alias for backward compatibility with UI components
+    explain_prediction = stream_xai_explanation
 
     def chat(self, message: str, history: list[dict]) -> Iterator[str] | None:
         """

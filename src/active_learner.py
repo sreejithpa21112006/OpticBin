@@ -24,16 +24,21 @@ from config.settings import (
 )
 
 _VISION_PROMPT = """\
-You are an expert waste classification assistant for an industrial recycling system.
+You are an expert waste classification assistant for a home waste sorting system.
 
 An Edge-AI model has classified the waste item in this image:
 - ML model prediction: {ml_label}
 - ML model confidence: {ml_confidence:.1f}%
 
-Please independently classify the waste item you see in the image.
+Please independently classify the waste item you see in the image into one of
+three degradability categories:
+- biodegradable: organic matter, food scraps, paper, cardboard, wood, cotton
+- non-biodegradable: plastics, glass, metals, rubber, ceramics, synthetic fabrics
+- e-waste: batteries, electronics, cables, circuit boards, chargers, phones
+
 Respond ONLY with a JSON object in this exact format (no other text):
 {{
-  "label": "<one of: cardboard, glass, metal, paper, plastic>",
+  "label": "<one of: biodegradable, non-biodegradable, e-waste>",
   "confidence": <0.0 to 1.0>,
   "reasoning": "<one sentence explaining the key visual feature>"
 }}

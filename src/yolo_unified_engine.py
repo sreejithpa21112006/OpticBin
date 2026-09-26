@@ -64,17 +64,27 @@ class YOLOUnifiedInferenceEngine(BaseInferenceEngine):
         """
         if isinstance(input_data, PILImage.Image):
             img_arr = np.asarray(input_data.convert("RGB"))
+            predict_input = cv2.cvtColor(img_arr, cv2.COLOR_RGB2BGR)
         elif isinstance(input_data, np.ndarray):
-            img_arr = input_data
+            if input_data.dtype in (np.float32, np.float64):
+                img_arr = (np.clip(input_data, 0.0, 1.0) * 255.0).astype(np.uint8)
+            else:
+                img_arr = input_data
+            if img_arr.ndim == 3 and img_arr.shape[2] == 3:
+                predict_input = cv2.cvtColor(img_arr, cv2.COLOR_RGB2BGR)
+            else:
+                predict_input = img_arr
         elif hasattr(input_data, "cpu"):  # PyTorch tensor
             tensor_np = input_data.squeeze(0).permute(1, 2, 0).detach().cpu().numpy()
             img_arr = (np.clip(tensor_np, 0.0, 1.0) * 255.0).astype(np.uint8)
+            predict_input = cv2.cvtColor(img_arr, cv2.COLOR_RGB2BGR)
         else:
             img_arr = np.asarray(input_data)
+            predict_input = img_arr
 
         start = time.perf_counter()
         results = self.model.predict(
-            img_arr,
+            predict_input,
             conf=self.conf_threshold,
             iou=0.45,
             agnostic_nms=True,
@@ -89,7 +99,6 @@ class YOLOUnifiedInferenceEngine(BaseInferenceEngine):
 
         # Determine target vocabulary / classes
         raw_names = getattr(self.model, "names", {})
-        active_classes = [raw_names[i].lower() for i in sorted(raw_names.keys())] if raw_names else CLASS_LABELS
 
         for i in range(len(boxes)):
             cls_id = int(boxes.cls[i])
@@ -108,10 +117,8 @@ class YOLOUnifiedInferenceEngine(BaseInferenceEngine):
                     "xyxy": xyxy,
                 })
 
-        # Calculate probability distribution
-        active_classes_clean = list(dict.fromkeys([self._map_to_material_class(c) for c in active_classes]))
-        if not active_classes_clean:
-            active_classes_clean = CLASS_LABELS
+        # Calculate probability distribution across standard 3 categories
+        active_classes_clean = list(CLASS_LABELS)
         probabilities = np.zeros(len(active_classes_clean), dtype=np.float32)
 
         # Filter out massive background boxes (room walls, doors) when tighter foreground boxes exist
@@ -132,6 +139,13 @@ class YOLOUnifiedInferenceEngine(BaseInferenceEngine):
         if not valid_detections:
             valid_detections = waste_detections
 
+        # Color mapping for bounding boxes matching category identity
+        category_colors = {
+            "biodegradable": (34, 197, 94),       # Emerald green (#22C55E)
+            "non-biodegradable": (59, 130, 246),   # Electric blue (#3B82F6)
+            "e-waste": (249, 115, 22),            # Warm orange (#F97316)
+        }
+
         primary = None
         if valid_detections:
             # Pick the primary detection strictly by highest confidence
@@ -149,8 +163,8 @@ class YOLOUnifiedInferenceEngine(BaseInferenceEngine):
             for idx in other_indices:
                 probabilities[idx] = remaining / max(1, len(other_indices))
         else:
-            class_label = "plastic"
-            class_id = active_classes_clean.index("plastic") if "plastic" in active_classes_clean else 0
+            class_label = "non-biodegradable"
+            class_id = active_classes_clean.index("non-biodegradable") if "non-biodegradable" in active_classes_clean else 0
             confidence = 0.50
             probabilities = np.full(len(active_classes_clean), 1.0 / len(active_classes_clean), dtype=np.float32)
 
@@ -158,7 +172,7 @@ class YOLOUnifiedInferenceEngine(BaseInferenceEngine):
         overlay_img = img_arr.copy()
         if primary is not None:
             px1, py1, px2, py2 = [int(v) for v in primary["xyxy"]]
-            color = (34, 197, 94)
+            color = category_colors.get(primary["label"], (34, 197, 94))
             label_text = f"{primary['label'].upper()} ({primary['conf']*100:.0f}%)"
             cv2.rectangle(overlay_img, (px1, py1), (px2, py2), color, 3)
 
@@ -181,7 +195,7 @@ class YOLOUnifiedInferenceEngine(BaseInferenceEngine):
                 if (inter_area / box2_area) > 0.25:
                     continue
 
-                sec_color = (16, 185, 129)
+                sec_color = category_colors.get(det["label"], (16, 185, 129))
                 sec_text = f"{det['label'].upper()} ({det['conf']*100:.0f}%)"
                 cv2.rectangle(overlay_img, (dx1, dy1), (dx2, dy2), sec_color, 2)
                 (stw, sth), _ = cv2.getTextSize(sec_text, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
@@ -236,7 +250,12 @@ class YOLOUnifiedInferenceEngine(BaseInferenceEngine):
             margin_x, margin_y = int(w * 0.15), int(h * 0.15)
             px1, py1, px2, py2 = margin_x, margin_y, w - margin_x, h - margin_y
 
-        color = (34, 197, 94)  # Emerald green
+        category_colors = {
+            "biodegradable": (34, 197, 94),       # Emerald green (#22C55E)
+            "non-biodegradable": (59, 130, 246),   # Electric blue (#3B82F6)
+            "e-waste": (249, 115, 22),            # Warm orange (#F97316)
+        }
+        color = category_colors.get(label.lower(), (34, 197, 94))
         cv2.rectangle(overlay_img, (px1, py1), (px2, py2), color, 3)
 
         label_text = f"{label.upper()} ({confidence*100:.0f}%)"
@@ -254,18 +273,41 @@ class YOLOUnifiedInferenceEngine(BaseInferenceEngine):
         return self.explain(input_tensor_or_array, rgb_float)
 
     def _map_to_material_class(self, detected_name: str) -> str:
-        """Helper to map YOLO class labels to standard OpticBin material categories."""
+        """Helper to map YOLO class labels to 3 degradability categories."""
         name = detected_name.lower().strip()
-        if name in ["biodegradable", "organic", "food", "compost", "fruit", "vegetable"]:
+
+        # Biodegradable: organic matter, food, paper, cardboard, wood, cotton
+        if name in [
+            "biodegradable", "organic", "food", "compost", "fruit", "vegetable",
+            "tomato", "potato", "onion", "carrot", "apple", "banana", "orange",
+            "broccoli", "lettuce", "bread", "sandwich", "pizza", "donut", "cake",
+            "paper", "book", "newspaper", "magazine", "receipt",
+            "cardboard", "box", "carton",
+            "wood", "cotton", "tea bag", "leaf", "leaves", "plant", "potted plant",
+            "garden waste", "food waste",
+        ]:
             return "biodegradable"
-        if name in ["cardboard", "box", "carton"]:
-            return "cardboard"
-        if name in ["glass", "glass bottle", "jar", "wine glass"]:
-            return "glass"
-        if name in ["metal", "can", "soda can", "tin can", "aluminum foil"]:
-            return "metal"
-        if name in ["paper", "book", "newspaper", "magazine", "receipt"]:
-            return "paper"
-        if name in ["plastic", "bottle", "plastic bag", "container"]:
-            return "plastic"
-        return name
+
+        # E-Waste: electronics, batteries, cables, circuit boards
+        if name in [
+            "e-waste", "ewaste", "electronic", "electronics",
+            "battery", "batteries", "phone", "cell phone", "mobile phone",
+            "cable", "charger", "circuit board", "pcb", "keyboard",
+            "mouse", "laptop", "computer", "monitor", "tv", "microwave",
+            "remote", "headphone", "earphone", "speaker",
+            "light bulb", "led", "usb", "wire", "toaster",
+        ]:
+            return "e-waste"
+
+        # Non-Biodegradable: plastics, glass, metals, rubber, ceramics
+        if name in [
+            "non-biodegradable", "plastic", "bottle", "plastic bag", "container",
+            "glass", "glass bottle", "jar", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
+            "metal", "can", "soda can", "tin can", "aluminum foil",
+            "rubber", "tyre", "ceramic", "styrofoam", "foam",
+            "nylon", "polyester", "synthetic",
+        ]:
+            return "non-biodegradable"
+
+        # Default fallback: non-biodegradable (safer for disposal)
+        return "non-biodegradable"

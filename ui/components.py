@@ -1,6 +1,8 @@
 """
-Streamlined, user-first UI components for the OpticBin dashboard.
-Focuses on clear bin recommendations, clean visual hierarchy, and intuitive action guidance.
+OpticBin — Premium 3-Bin UI Components
+==========================================
+Glassmorphism hero cards, animated checklists, and rich visual guidance
+for the biodegradable / non-biodegradable / e-waste home sorting system.
 """
 
 from __future__ import annotations
@@ -8,12 +10,12 @@ from __future__ import annotations
 import streamlit as st
 
 from config.settings import (
+    BIN_COLORS,
+    BIN_ICONS,
     CLASS_LABELS,
     DEVICE,
-    INPUT_SIZE,
     LATENCY_TARGET_MS,
     NUM_CLASSES,
-    SUPPORTED_MODELS,
     WASTE_METADATA,
 )
 from ui.styles import IMAGE_MODE, WEBCAM_MODE
@@ -21,14 +23,37 @@ from ui.styles import IMAGE_MODE, WEBCAM_MODE
 PYTORCH_FRAMEWORK = "PyTorch + Grad-CAM"
 ONNX_FRAMEWORK = "ONNX Runtime (Fast)"
 
+# ──────────────────────────────────────────────
+# Theme mapping for CSS classes
+# ──────────────────────────────────────────────
+_HERO_CLASS_MAP = {
+    "biodegradable": "ob-hero-bio",
+    "non-biodegradable": "ob-hero-nonbio",
+    "e-waste": "ob-hero-ewaste",
+}
+
+_CHECK_ICON_MAP = {
+    "biodegradable": ("✓", "ob-check-icon-bio"),
+    "non-biodegradable": ("✓", "ob-check-icon-nonbio"),
+    "e-waste": ("⚠", "ob-check-icon-ewaste"),
+}
+
 
 def render_header() -> None:
-    """Render a clean, uncluttered application header."""
+    """Render the premium gradient header with 3-bin legend."""
     st.markdown(
         """
-        <div class="ob-header-container">
-            <h1 class="ob-title">OpticBin</h1>
-            <p class="ob-subtitle">Smart Waste Sorting Assistant - Scan any item for instant recycling and disposal guidance</p>
+        <div class="ob-header">
+            <div class="ob-logo-row">
+                <span class="ob-logo-icon">♻️</span>
+                <h1 class="ob-title">OpticBin</h1>
+            </div>
+            <p class="ob-subtitle">AI-Powered Home Waste Sorting — Scan any item for instant bin guidance</p>
+            <div class="ob-bin-legend">
+                <div class="ob-legend-item">🟢 <span>Green Bin — Biodegradable</span></div>
+                <div class="ob-legend-item">🔵 <span>Blue Bin — Non-Biodegradable</span></div>
+                <div class="ob-legend-item">🟠 <span>E-Waste Collection</span></div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -36,11 +61,9 @@ def render_header() -> None:
 
 
 def render_sidebar() -> str:
-    """
-    Streamlined sidebar prioritizing input mode selection with zero model clutter.
-    """
+    """Streamlined sidebar with scan method and system info."""
     with st.sidebar:
-        st.markdown("### Scan Method")
+        st.markdown("### 📷 Scan Method")
         input_mode = st.radio(
             "Select input mode",
             [WEBCAM_MODE, IMAGE_MODE],
@@ -49,9 +72,10 @@ def render_sidebar() -> str:
         )
 
         st.divider()
-        st.caption("**Model:** Fine-Tuned Unified YOLOv8")
-        st.caption(f"**Hardware:** `{'GPU (CUDA)' if DEVICE == 'cuda' else 'CPU'}`")
-        st.caption(f"**Classes:** `6 Material Categories (Roboflow)`")
+        st.markdown("##### System")
+        st.caption(f"🧠 **Model:** Fine-Tuned Unified YOLOv8")
+        st.caption(f"⚡ **Hardware:** `{'GPU (CUDA)' if DEVICE == 'cuda' else 'CPU'}`")
+        st.caption(f"🏷️ **Categories:** `3 Degradability Bins`")
 
     return input_mode
 
@@ -60,12 +84,9 @@ def render_engine_status(engine: object) -> None:
     """Subtle status indicator in sidebar."""
     using_finetuned = getattr(engine, "using_finetuned_weights", False)
     if using_finetuned:
-        st.sidebar.caption("[Status] Active: Fine-tuned waste detection weights.")
+        st.sidebar.caption("✅ Active: Fine-tuned waste detection weights")
     else:
-        st.sidebar.caption("[Status] Active: Base weights.")
-
-    if not using_finetuned:
-        st.sidebar.caption("[Status] Using ImageNet base weights (uncalibrated).")
+        st.sidebar.caption("⚠️ Active: Base weights (uncalibrated)")
 
 
 def render_untrained_warning(engine: object) -> None:
@@ -73,38 +94,53 @@ def render_untrained_warning(engine: object) -> None:
     if getattr(engine, "using_finetuned_weights", False):
         return
     st.info(
-        "Notice: Using standard base weights. For production sorting accuracy, "
+        "📌 Using standard base weights. For production sorting accuracy, "
         "ensure fine-tuned weights are present in models/weights/."
     )
 
 
 def render_hero_bin_card(result: dict, latency_ms: float) -> None:
     """
-    Renders a prominent, color-coded hero recommendation card that immediately
-    informs the user which bin the item belongs to.
+    Renders the premium glassmorphism hero card showing which bin the item
+    should go into, with animated entrance and rich metadata pills.
     """
-    label = result.get("class_label", "plastic").lower()
-    meta = WASTE_METADATA.get(label, {})
+    label = result.get("class_label", "non-biodegradable").lower()
+    meta = WASTE_METADATA.get(label, WASTE_METADATA["non-biodegradable"])
     confidence = result.get("confidence", 0.0) * 100
-    disposal_bin = meta.get("disposal", "General Recycling Bin")
-    bio_label = _bio_label(meta)
-    theme_class = f"ob-bin-hero-{label}" if label in ["plastic", "paper", "cardboard", "metal", "glass", "biodegradable"] else "ob-bin-hero-plastic"
+    disposal = meta.get("disposal", "Check local disposal guidelines")
+    bin_icon = meta.get("bin_icon", "♻️")
+    bin_color = meta.get("bin_color", "#6B7280")
+    category = meta.get("category", "Unknown")
+    decomposition = meta.get("decomposition", "Varies")
 
-    corrected_pill = ""
+    hero_class = _HERO_CLASS_MAP.get(label, "ob-hero-nonbio")
+
+    # Category display name
+    display_name = {
+        "biodegradable": "Biodegradable",
+        "non-biodegradable": "Non-Biodegradable",
+        "e-waste": "E-Waste",
+    }.get(label, label.title())
+
+    # Verified badge
+    verified_pill = ""
     if result.get("corrected_by_gemini") or result.get("verified_by_gemini"):
-        corrected_pill = '<span class="ob-pill" style="border-color:#10B981; color:#10B981;">Source: <b>AI Supervisor Verified</b></span>'
+        verified_pill = '<span class="ob-pill ob-pill-verified">✨ <b>AI Supervisor Verified</b></span>'
 
     st.markdown(
         f"""
-        <div class="ob-bin-hero {theme_class}">
-            <div class="ob-bin-kicker">Recommended Disposal Destination</div>
-            <div class="ob-bin-title">{disposal_bin.upper()}</div>
-            <div class="ob-bin-meta-row">
-                <span class="ob-pill">Material: <b>{label.title()}</b></span>
-                <span class="ob-pill">Confidence: <b>{confidence:.1f}%</b></span>
-                <span class="ob-pill">Type: <b>{bio_label}</b></span>
-                <span class="ob-pill">Scan Time: <b>{latency_ms:.0f} ms</b></span>
-                {corrected_pill}
+        <div class="ob-hero {hero_class}">
+            <div class="ob-hero-kicker">Recommended Disposal</div>
+            <div class="ob-hero-bin-row">
+                <span class="ob-hero-bin-icon">{bin_icon}</span>
+                <span class="ob-hero-bin-name" style="color:{bin_color};">{display_name}</span>
+            </div>
+            <div class="ob-hero-disposal">{disposal}</div>
+            <div class="ob-pills-row">
+                <span class="ob-pill">🎯 Confidence: <b>{confidence:.1f}%</b></span>
+                <span class="ob-pill">⏱️ Scan: <b>{latency_ms:.0f} ms</b></span>
+                <span class="ob-pill">🕐 Decomposition: <b>{decomposition}</b></span>
+                {verified_pill}
             </div>
         </div>
         """,
@@ -113,44 +149,68 @@ def render_hero_bin_card(result: dict, latency_ms: float) -> None:
 
 
 def render_actionable_checklist(result: dict) -> None:
-    """Renders a clean, actionable preparation and handling checklist."""
-    label = result.get("class_label", "plastic").lower()
+    """Renders a rich, animated disposal checklist with category-themed icons."""
+    label = result.get("class_label", "non-biodegradable").lower()
     meta = WASTE_METADATA.get(label, {})
     if not meta:
         return
 
-    tips = meta.get("tips", ["Empty and rinse containers before discarding."])
-    decomposition = meta.get("decomposition", "Varies")
-    recyclable = meta.get("recyclable", True)
+    tips = meta.get("tips", ["Follow local disposal guidelines."])
+    examples = meta.get("examples", "")
+    env_impact = meta.get("environmental_impact", "")
+    check_icon, check_class = _CHECK_ICON_MAP.get(label, ("✓", "ob-check-icon-nonbio"))
 
-    recycle_status = "Fully Recyclable" if recyclable is True else "Check local recycling facility rules"
+    # Build checklist HTML
+    tips_html = ""
+    for tip in tips:
+        tips_html += f"""
+        <div class="ob-checklist-item">
+            <span class="ob-check-icon {check_class}">{check_icon}</span>
+            <div>{tip}</div>
+        </div>
+        """
+
+    # Build examples tags
+    examples_html = ""
+    if examples:
+        tags = [e.strip() for e in examples.split(",")]
+        tag_items = "".join(f'<span class="ob-example-tag">{t}</span>' for t in tags[:8])
+        examples_html = f"""
+        <div style="margin-top:0.8rem;">
+            <div style="font-size:0.75rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; opacity:0.5; margin-bottom:0.4rem;">Common Examples</div>
+            <div class="ob-examples">{tag_items}</div>
+        </div>
+        """
 
     st.markdown(
         f"""
-        <div class="ob-checklist">
-            <div style="font-weight:700; font-size:1rem; margin-bottom:0.6rem;">Disposal Instructions</div>
-            <div class="ob-checklist-item">
-                <span class="ob-checklist-bullet">[x]</span>
-                <div><b>Recyclability:</b> {recycle_status}</div>
-            </div>
-            <div class="ob-checklist-item">
-                <span class="ob-checklist-bullet">[x]</span>
-                <div><b>Preparation:</b> {tips[0] if tips else 'Empty contents thoroughly.'}</div>
-            </div>
-            <div class="ob-checklist-item">
-                <span class="ob-checklist-bullet">[x]</span>
-                <div><b>Environmental Impact:</b> Estimated decomposition time: {decomposition}</div>
-            </div>
+        <div class="ob-card">
+            <div class="ob-card-title">♻️ Disposal Instructions</div>
+            {tips_html}
+            {examples_html}
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+    # Environmental impact card
+    if env_impact:
+        st.markdown(
+            f"""
+            <div class="ob-card">
+                <div class="ob-card-title">🌍 Environmental Impact</div>
+                <div style="font-size:0.9rem; line-height:1.6; opacity:0.85;">{env_impact}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
 
 def render_prediction_summary(result: dict, latency_ms: float, compact: bool = False) -> None:
     """Unified wrapper for hero bin card and checklist."""
     render_hero_bin_card(result, latency_ms)
-    render_actionable_checklist(result)
+    if not compact:
+        render_actionable_checklist(result)
 
 
 def render_disposal_guidance(result: dict, advisor=None) -> None:
@@ -158,9 +218,9 @@ def render_disposal_guidance(result: dict, advisor=None) -> None:
     if advisor is None or not getattr(advisor, "is_available", False):
         return
 
-    with st.expander("AI Recycling Assistant", expanded=False):
+    with st.expander("🤖 AI Recycling Assistant", expanded=False):
         btn_key = f"ai_advice_{result.get('class_label', 'unknown')}"
-        if st.button("Generate Detailed Recycling Steps", key=btn_key):
+        if st.button("Get Personalized Recycling Advice", key=btn_key, use_container_width=True):
             with st.spinner("Analyzing material..."):
                 stream = advisor.stream_recycling_advice(result)
             if stream is not None:
@@ -176,14 +236,14 @@ def render_heatmap(heatmap, engine: object, caption: str | None = None) -> None:
     st.image(heatmap, caption=caption or "Visual Attention Heatmap", width="stretch")
 
 
-def render_llm_xai_explanation(result: dict, advisor, model_type: str = "EfficientNetV2") -> None:
+def render_llm_xai_explanation(result: dict, advisor, model_type: str = "YOLOv8") -> None:
     """Explain Grad-CAM visual features."""
     if advisor is None or not getattr(advisor, "is_available", False):
         return
 
-    with st.expander("Explain Prediction", expanded=False):
+    with st.expander("🔬 Explain Prediction", expanded=False):
         btn_key = f"xai_{result.get('class_label', 'unknown')}"
-        if st.button("Explain Model Focus", key=btn_key):
+        if st.button("Explain What The Model Sees", key=btn_key, use_container_width=True):
             with st.spinner("Analyzing features..."):
                 stream = advisor.explain_prediction(result, model_type=model_type)
             if stream is not None:
@@ -191,7 +251,7 @@ def render_llm_xai_explanation(result: dict, advisor, model_type: str = "Efficie
 
 
 def render_active_learning_badge(al_result: dict | None) -> None:
-    """Displays agreement indicator if active learning cross-check ran."""
+    """Displays a styled agreement/correction badge for active learning results."""
     if al_result is None:
         return
 
@@ -200,11 +260,19 @@ def render_active_learning_badge(al_result: dict | None) -> None:
     gemini_conf = al_result.get("gemini_confidence", 0.0) * 100
     ml_conf = al_result.get("ml_confidence", 0.0)
 
+    # Human-friendly label
+    display_label = {
+        "biodegradable": "Biodegradable 🟢",
+        "non-biodegradable": "Non-Biodegradable 🔵",
+        "e-waste": "E-Waste 🟠",
+    }.get(gemini_label, gemini_label.title())
+
     if agreement:
         st.markdown(
             f"""
-            <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10B981; padding: 0.5rem 0.8rem; border-radius: 4px; margin-bottom: 0.8rem; font-size: 0.88rem; color: #D1D5DB;">
-                <b style="color:#10B981;">[AI Supervisor Verified]</b> Gemini Vision confirmed material as <b>{gemini_label.title()} ({gemini_conf:.0f}% confidence)</b>.
+            <div class="ob-al-badge ob-al-verified">
+                <b style="color:#22C55E;">✅ AI Supervisor Verified</b> — Gemini Vision confirmed:
+                <b>{display_label}</b> ({gemini_conf:.0f}% confidence)
             </div>
             """,
             unsafe_allow_html=True,
@@ -212,8 +280,9 @@ def render_active_learning_badge(al_result: dict | None) -> None:
     else:
         st.markdown(
             f"""
-            <div style="background: rgba(16, 185, 129, 0.12); border-left: 4px solid #10B981; padding: 0.5rem 0.8rem; border-radius: 4px; margin-bottom: 0.8rem; font-size: 0.88rem; color: #D1D5DB;">
-                <b style="color:#10B981;">[AI Supervisor Correction]</b> Local detection was uncertain ({ml_conf:.0f}%). Gemini Vision cross-checked and verified the item as <b>{gemini_label.title()} ({gemini_conf:.0f}% confidence)</b>.
+            <div class="ob-al-badge ob-al-corrected">
+                <b style="color:#F97316;">🔄 AI Supervisor Correction</b> — Local model was uncertain ({ml_conf:.0f}%).
+                Gemini Vision re-classified as <b>{display_label}</b> ({gemini_conf:.0f}% confidence)
             </div>
             """,
             unsafe_allow_html=True,
@@ -221,8 +290,8 @@ def render_active_learning_badge(al_result: dict | None) -> None:
 
 
 def render_probability_chart(result: dict) -> None:
-    """Renders clean, sorted probability distribution bars."""
-    with st.expander("Material Probability Breakdown", expanded=False):
+    """Renders clean, sorted probability distribution with bin-colored bars."""
+    with st.expander("📊 Category Probability Breakdown", expanded=False):
         labels = result.get("class_names", CLASS_LABELS)
         probs = result.get("probabilities", [])
         paired = list(zip(labels, probs))
@@ -230,13 +299,20 @@ def render_probability_chart(result: dict) -> None:
 
         for class_name, prob in paired:
             pct = float(prob) * 100
+            icon = BIN_ICONS.get(class_name, "♻️")
+            display = {
+                "biodegradable": "Biodegradable",
+                "non-biodegradable": "Non-Biodegradable",
+                "e-waste": "E-Waste",
+            }.get(class_name, class_name.title())
+
             c_name, c_bar = st.columns([1, 3])
-            c_name.write(f"**{class_name.title()}**")
+            c_name.write(f"{icon} **{display}**")
             c_bar.progress(float(prob), text=f"{pct:.1f}%")
 
 
 def render_empty_state(title: str, body: str) -> None:
-    """Clean dashed placeholder."""
+    """Premium dashed placeholder with animated pulse."""
     st.markdown(
         f"""
         <div class="ob-empty-state">
@@ -249,20 +325,20 @@ def render_empty_state(title: str, body: str) -> None:
 
 
 def render_recycling_chatbot(advisor) -> None:
-    """Sidebar recycling Q&A chatbot (collapsed under an expander to keep sidebar tidy)."""
+    """Sidebar recycling Q&A chatbot."""
     if advisor is None or not getattr(advisor, "is_available", False):
         return
 
-    with st.sidebar.expander("Recycling Q&A Chat", expanded=False):
+    with st.sidebar.expander("💬 Recycling Q&A Chat", expanded=False):
         if "_chat_history" not in st.session_state:
             st.session_state["_chat_history"] = []
             st.session_state["_chat_display"] = []
 
         for msg in st.session_state["_chat_display"]:
-            prefix = "User: " if msg["role"] == "user" else "Advisor: "
-            st.markdown(f"**{prefix}** {msg['text']}")
+            prefix = "**You:** " if msg["role"] == "user" else "**Advisor:** "
+            st.markdown(f"{prefix}{msg['text']}")
 
-        user_input = st.chat_input("Ask a waste question...")
+        user_input = st.chat_input("Ask a waste sorting question...")
         if user_input:
             st.session_state["_chat_display"].append({"role": "user", "text": user_input})
             stream = advisor.chat(user_input, st.session_state["_chat_history"])
@@ -274,6 +350,31 @@ def render_recycling_chatbot(advisor) -> None:
                 ])
                 st.session_state["_chat_display"].append({"role": "model", "text": response_text})
             st.rerun()
+
+
+def render_scan_stats() -> None:
+    """Render session scan statistics in the sidebar."""
+    from ui.state_manager import SessionTracker
+    stats = SessionTracker.get_stats()
+    if stats["total"] == 0:
+        return
+
+    st.sidebar.divider()
+    st.sidebar.markdown("##### 📈 Session Stats")
+
+    c1, c2 = st.sidebar.columns(2)
+    c1.metric("Scans", stats["total"])
+    c2.metric("Recyclable", f"{stats['recyclable_pct']:.0f}%")
+
+    if stats["counts"]:
+        for label, count in stats["counts"].items():
+            icon = BIN_ICONS.get(label, "♻️")
+            display = {
+                "biodegradable": "Bio",
+                "non-biodegradable": "Non-Bio",
+                "e-waste": "E-Waste",
+            }.get(label, label[:8])
+            st.sidebar.caption(f"{icon} {display}: **{count}**")
 
 
 def _iter_gemini_stream(stream):

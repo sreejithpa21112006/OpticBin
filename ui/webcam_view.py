@@ -1,6 +1,8 @@
 """
-Streamlined live camera classification for OpticBin.
-Features a reliable camera input, clean visual target overlay, and instant hero bin recommendations.
+OpticBin — Live Camera Classification View
+================================================
+Premium camera-based classification with visual detection overlay
+and instant 3-bin hero recommendations.
 """
 
 from __future__ import annotations
@@ -35,7 +37,7 @@ _HEATMAP_KEY = "_opticbin_last_heatmap"
 
 
 def render_webcam_view(engine: Any, advisor=None, active_learner=None) -> None:
-    """Render the simplified camera-based classification interface."""
+    """Render the premium camera-based classification interface."""
     render_untrained_warning(engine)
 
     mode = st.radio(
@@ -52,20 +54,20 @@ def render_webcam_view(engine: Any, advisor=None, active_learner=None) -> None:
 
 
 def _render_snapshot_mode(engine: Any, advisor=None, active_learner=None) -> None:
-    """Clear, distraction-free photo capture with visual detection overlay."""
+    """Premium photo capture with visual detection overlay."""
     photo = st.camera_input("Aim camera at waste item and take a photo", label_visibility="collapsed")
 
     if photo is None:
         render_empty_state(
-            "Camera Viewfinder Ready",
-            "Point your webcam at any waste item and click 'Take Photo' to classify and view disposal guidance.",
+            "📷 Camera Viewfinder Ready",
+            "Point your webcam at any waste item and click 'Take Photo' to identify the correct disposal bin.",
         )
         return
 
     image = Image.open(photo)
 
     try:
-        with st.spinner("Analyzing waste item..."):
+        with st.spinner("🔍 Analyzing waste item..."):
             started = time.perf_counter()
             rgb_float = np.array(image.convert("RGB"), dtype=np.float32) / 255.0
             result = engine.predict_and_explain(image, rgb_float)
@@ -78,7 +80,7 @@ def _render_snapshot_mode(engine: Any, advisor=None, active_learner=None) -> Non
     # Active learning cross-check if low confidence
     al_result = None
     if active_learner is not None and active_learner.should_cross_check(result):
-        with st.spinner("Cross-checking low confidence scan with AI supervisor..."):
+        with st.spinner("🤖 Cross-checking with AI supervisor..."):
             al_result = active_learner.verify_with_gemini_vision(image, result)
             if al_result is not None:
                 active_learner.log_to_review_queue(image, result, al_result)
@@ -120,32 +122,38 @@ def _render_snapshot_mode(engine: Any, advisor=None, active_learner=None) -> Non
                             subtitle="AI Verified",
                         )
 
-    # 2-Column User-First Layout
+    # 2-Column Premium Layout
     col_visual, col_guidance = st.columns([1.1, 1])
 
     with col_visual:
-        st.markdown("### Captured Target")
+        st.markdown('<div class="ob-section-title">📸 Captured Target</div>', unsafe_allow_html=True)
         if result.get("heatmap_overlay") is not None:
-            caption_tag = " - AI Supervisor Verified" if (result.get("corrected_by_gemini") or result.get("verified_by_gemini")) else ""
+            verified_tag = " — AI Verified ✨" if (result.get("corrected_by_gemini") or result.get("verified_by_gemini")) else ""
+            display_label = {
+                "biodegradable": "Biodegradable 🟢",
+                "non-biodegradable": "Non-Biodegradable 🔵",
+                "e-waste": "E-Waste 🟠",
+            }.get(result["class_label"], result["class_label"].title())
+
             st.image(
                 result["heatmap_overlay"],
-                caption=f"Target Detected: {result['class_label'].title()} ({result['confidence']*100:.0f}%){caption_tag}",
+                caption=f"Detected: {display_label} ({result['confidence']*100:.0f}%){verified_tag}",
                 width="stretch",
             )
         else:
             st.image(image, caption="Captured Frame", width="stretch")
 
-        with st.expander("Inspection: Model Crop & Heatmap", expanded=False):
+        with st.expander("🔬 Technical Inspection", expanded=False):
             crop_display = (np.clip(rgb_float, 0.0, 1.0) * 255.0).astype(np.uint8)
-            t1, t2 = st.tabs(["224x224 Model Input", "Attention Heatmap"])
+            t1, t2 = st.tabs(["Model Input", "Detection Overlay"])
             with t1:
-                st.image(crop_display, caption="Preprocessed Normalized Crop", width="stretch")
+                st.image(crop_display, caption="Preprocessed Input", width="stretch")
             with t2:
                 render_heatmap(result.get("heatmap_overlay"), engine)
-            render_llm_xai_explanation(result, advisor, model_type=getattr(engine, "model_type", "EfficientNetV2"))
+            render_llm_xai_explanation(result, advisor, model_type=getattr(engine, "model_type", "YOLOv8"))
 
     with col_guidance:
-        st.markdown("### Sorting Guidance")
+        st.markdown('<div class="ob-section-title">🗑️ Sorting Guidance</div>', unsafe_allow_html=True)
         render_active_learning_badge(al_result)
         render_prediction_summary(result, latency_ms)
         render_probability_chart(result)
@@ -154,12 +162,12 @@ def _render_snapshot_mode(engine: Any, advisor=None, active_learner=None) -> Non
 
 def _render_continuous_stream_mode(engine: Any) -> None:
     """Continuous video feed mode with graceful start/stop."""
-    running = st.toggle("Activate Live Camera Stream", value=False)
+    running = st.toggle("🎥 Activate Live Camera Stream", value=False)
     if not running:
         _stop_stream()
         render_empty_state(
-            "Live Stream Inactive",
-            "Toggle 'Activate Live Camera Stream' to classify items continuously in real time.",
+            "📹 Live Stream Inactive",
+            "Toggle the switch above to classify items continuously in real time.",
         )
         return
 
