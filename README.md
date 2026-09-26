@@ -1,8 +1,12 @@
+<p align="center">
+  <img src="assets/banner.png" alt="OpticBin Banner" width="100%" />
+</p>
+
 # OpticBin
 
 Real-Time Edge-AI Waste Sorting Assistant
 
-OpticBin is an intelligent, high-performance waste classification and sorting system designed for real-time edge deployment. Powered by a fine-tuned Unified Single-Stage YOLOv8 architecture and accelerated by NVIDIA CUDA hardware, OpticBin simultaneously localizes waste items and classifies them into standardized material categories in under 12 milliseconds.
+OpticBin is an intelligent, high-performance waste classification and sorting system engineered for real-time edge deployment. Powered by a fine-tuned Unified Single-Stage YOLOv8 architecture and accelerated by NVIDIA CUDA hardware, OpticBin simultaneously localizes waste items and classifies them into three standardized degradation and disposal categories (Biodegradable, Non-Biodegradable, and E-Waste) in under 12 milliseconds.
 
 For ambiguous edge cases, OpticBin integrates an Active Learning feedback loop backed by a multimodal Gemini Vision supervisor that validates low-confidence predictions, auto-corrects sorting recommendations, and logs edge cases for continuous fine-tuning.
 
@@ -12,7 +16,7 @@ For ambiguous edge cases, OpticBin integrates an Active Learning feedback loop b
 
 - [Key Capabilities](#key-capabilities)
 - [System Architecture](#system-architecture)
-- [Supported Material Taxonomy](#supported-material-taxonomy)
+- [Supported Degradability Taxonomy](#supported-degradability-taxonomy)
 - [Performance Specifications](#performance-specifications)
 - [Repository Structure](#repository-structure)
 - [Hardware and Software Requirements](#hardware-and-software-requirements)
@@ -29,9 +33,10 @@ For ambiguous edge cases, OpticBin integrates an Active Learning feedback loop b
 
 - **Unified Single-Stage Detection**: Bounding-box localization and material classification occur simultaneously in a single forward pass, eliminating multi-stage model handoffs and latency bottlenecks.
 - **Hardware-Accelerated Inference**: Leverages NVIDIA Tensor Cores with CUDA 12.6 and Automatic Mixed Precision (AMP), achieving sub-12 ms end-to-end inference latency on modern GPUs.
-- **Active Learning Supervisor**: Automatically queries multimodal Gemini Vision when local detection confidence is low, providing real-time second opinions, dynamic auto-correction, and automatic edge-case logging.
-- **Actionable Disposal Guidance**: Every scan immediately presents color-coded Hero Destination Bin cards, material confidence metrics, and step-by-step preparation checklists (such as rinsing containers and resin code verification).
-- **Interactive Conversational Advisor**: Includes an integrated streaming recycling chatbot that answers handling questions, local municipality sorting rules, and environmental impact inquiries.
+- **Three-Bin Degradability Taxonomy**: Categorizes all household and municipal waste into three actionable destinations: Biodegradable (Green), Non-Biodegradable (Blue), and E-Waste (Orange).
+- **Active Learning Supervisor**: Automatically queries multimodal Gemini Vision when local detection confidence falls below threshold, providing real-time second opinions, dynamic UI auto-correction, and automatic edge-case logging.
+- **Actionable Disposal Guidance**: Every scan presents color-coded destination cards, material confidence metrics, decomposition timelines, and step-by-step preparation checklists.
+- **Interactive Conversational Advisor**: Includes an integrated streaming recycling assistant that answers handling questions, local municipality sorting rules, and environmental impact inquiries.
 - **Dual Input Modalities**: Supports both high-resolution image uploads and real-time live webcam capture viewfinders.
 
 ---
@@ -44,44 +49,43 @@ For ambiguous edge cases, OpticBin integrates an Active Learning feedback loop b
 +---------------------------------------------------------------------------------+
 |                                                                                 |
 |  [ Visual Input Source ]                                                        |
-|   - Live Webcam Snapshot or High-Resolution File Upload (JPG/PNG)               |
-|                               │                                                 |
-|                               ▼                                                 |
+|   - Live Webcam Snapshot or High-Resolution File Upload (JPG/PNG/WebP)          |
+|                               |                                                 |
+|                               v                                                 |
 |  [ Unified YOLOv8s Inference Engine ]                                           |
 |   - Architecture: YOLOv8 Small (11.2M parameters)                               |
 |   - Compute: NVIDIA GeForce RTX GPU (CUDA 12.6, FP16 AMP)                       |
 |   - Execution Latency: Sub-12 ms                                                |
-|   - Output: Coordinates, Material Class, Confidence                             |
-|                               │                                                 |
-|                               ▼                                                 |
+|   - Output: Coordinates, Degradability Category, Confidence Score               |
+|                               |                                                 |
+|                               v                                                 |
 |  [ Confidence Arbitration & Active Learning ]                                   |
 |   - If Confidence >= 35%: Instant Local Resolution (< 12 ms)                    |
 |   - If Confidence < 35%: Query Multimodal Gemini Vision Supervisor              |
 |        - High-Confidence Supervisor Response: Dynamic UI Auto-Correction        |
 |        - Log Flagged Image & Metadata to review_queue/ for Retraining           |
-|                               │                                                 |
-|                               ▼                                                 |
+|                               |                                                 |
+|                               v                                                 |
 |  [ Interactive Streamlit Dashboard ]                                            |
 |   - Visual Capture with Labeled Bounding Box Overlay                            |
-|   - Color-Coded Hero Disposal Bin Card                                          |
+|   - Color-Coded Hero Destination Bin Card (Green / Blue / Orange)               |
 |   - Actionable Preparation Checklist & Environmental Decomposition Time         |
-|   - Material Probability Distribution Chart                                     |
+|   - Category Probability Distribution Chart                                     |
 |   - Conversational AI Recycling Advisor                                         |
 +---------------------------------------------------------------------------------+
 ```
 
 ---
 
-## Supported Material Taxonomy
+## Supported Degradability Taxonomy
 
-| Material | Category | Recyclability | Disposal Destination | Key Handling Rule |
+OpticBin streamlines waste sorting into three primary categories aligned with municipal collection standards:
+
+| Category | Bin Designation | Theme Color | Target Materials | Key Handling Rules |
 |---|---|---|---|---|
-| Biodegradable | Organic | Fully Compostable | Compost / Organic Bin | Separate from plastics; remove packaging |
-| Cardboard | Recyclable | Widely Recyclable | Recycling Bin (Cardboard) | Flatten boxes to save space; keep dry |
-| Glass | Non-Biodegradable | Infinitely Recyclable | Recycling Bin (Glass) | Empty and rinse; separate broken glass if required |
-| Metal | Non-Biodegradable | Infinitely Recyclable | Recycling Bin (Metal) | Rinse cans; aluminum and steel are fully recyclable |
-| Paper | Recyclable | Widely Recyclable | Recycling Bin (Paper) | Keep clean and dry; remove plastic wrapping |
-| Plastic | Non-Biodegradable | Varies by Type (1, 2, 5) | Recycling Bin (Plastic) | Check resin code on base; rinse residue thoroughly |
+| Biodegradable | Green Bin (Wet / Organic) | Emerald Green (#22C55E) | Food scraps, fruit peels, vegetable waste, paper, cardboard, garden clippings, tea bags, wood, natural cotton | Keep separate from plastics and packaging. Suitable for composting. Diverts organic matter from landfills. |
+| Non-Biodegradable | Blue Bin (Dry / Recyclable) | Electric Blue (#3B82F6) | Plastics, glass bottles, jars, aluminum and tin cans, rubber, ceramics, styrofoam, synthetic polymers | Rinse food and liquid residues. Check plastic resin identification codes (types 1, 2, and 5 are widely recyclable). |
+| E-Waste | Orange Bin (Hazardous / E-Waste) | Warm Orange (#F97316) | Batteries, smartphones, laptops, power cables, chargers, circuit boards, keyboards, lamps, appliances | Never discard in regular curbside bins. Take to certified e-waste drop-off locations or manufacturer collection drives. |
 
 ---
 
@@ -90,9 +94,9 @@ For ambiguous edge cases, OpticBin integrates an Active Learning feedback loop b
 | Metric | Target Specification | Achieved Performance (RTX 4060 GPU) |
 |---|---|---|
 | Inference Latency | Sub-50 ms | 8 to 12 ms |
-| Preprocessing & Overlay | Sub-20 ms | 6 to 10 ms |
+| Preprocessing and Overlay | Sub-20 ms | 6 to 10 ms |
 | System RAM Consumption | Under 2.5 GB | Approximately 1.2 GB |
-| Detection mAP50 | Greater than 50% | 53.1% (50 Epoch Fine-Tuned Model) |
+| Detection mAP50 | Greater than 50% | 53.1% (50-Epoch Fine-Tuned Model) |
 | Local Model Autonomy | Greater than 85% | Confident classifications resolve 100% locally |
 
 ---
@@ -101,6 +105,8 @@ For ambiguous edge cases, OpticBin integrates an Active Learning feedback loop b
 
 ```
 OpticBin/
+├── assets/
+│   └── banner.png                   # Project header banner image
 ├── app.py                           # Main Streamlit application entry point
 ├── train_yolo.py                    # CUDA-accelerated YOLOv8 fine-tuning pipeline
 ├── add_review_sample_to_dataset.py  # Active learning feedback merger
@@ -108,7 +114,7 @@ OpticBin/
 ├── prepare_yolo_dataset.py          # Dataset structure validator and sample generator
 ├── requirements.txt                 # Project runtime dependencies
 ├── config/
-│   ├── settings.py                  # Core configuration, thresholds, and metadata
+│   ├── settings.py                  # Core configuration, 3-bin taxonomy, and metadata
 │   ├── schema.py                    # Type-safe configuration dataclasses
 │   └── waste_yolo.yaml              # YOLO dataset paths and class configuration
 ├── models/
@@ -117,7 +123,7 @@ OpticBin/
 │       ├── yolov8_waste.pt          # Fine-tuned YOLOv8s GPU weights
 │       └── yolov8_waste.onnx        # Exported high-speed ONNX model
 ├── src/
-│   ├── yolo_unified_engine.py       # Single-stage YOLOv8 inference engine
+│   ├── yolo_unified_engine.py       # Single-stage YOLOv8 inference engine with 3-bin mapping
 │   ├── inference_engine.py          # Abstract engine interface and PredictionResult
 │   ├── active_learner.py            # Multimodal Gemini Vision supervisor
 │   ├── llm_advisor.py               # Streaming recycling advisory assistant
@@ -128,7 +134,7 @@ OpticBin/
 │   ├── components.py                # Hero cards, checklists, and active learning badges
 │   ├── image_view.py                # Upload image analysis view
 │   ├── webcam_view.py               # Live camera viewfinder view
-│   ├── styles.py                    # Dark-mode theme, CSS variables, and cards
+│   ├── styles.py                    # Dark-mode theme, CSS variables, and modern cards
 │   └── state_manager.py             # Session statistics tracker
 ├── dataset_roboflow/                # YOLO annotated dataset (7,340 images)
 └── review_queue/                    # Logged edge-case scans for continuous learning
@@ -140,7 +146,7 @@ OpticBin/
 
 - **Operating System**: Windows 10/11 or Ubuntu 20.04/22.04 LTS
 - **Python**: Version 3.10 to 3.13
-- **GPU (Recommended for Real-Time Speed)**: NVIDIA GeForce RTX GPU with CUDA 12.x support (e.g., RTX 3060, RTX 4060 or higher with 8+ GB VRAM)
+- **GPU (Recommended for Real-Time Speed)**: NVIDIA GeForce RTX GPU with CUDA 12.x support (RTX 3060, RTX 4060 or higher with 8+ GB VRAM)
 - **CPU**: Multi-core processor (Intel Core i5/i7/i9 or AMD Ryzen 5/7/9)
 - **RAM**: Minimum 8 GB (16 GB recommended)
 
@@ -163,7 +169,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-On Linux / macOS:
+On Linux or macOS:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -190,7 +196,7 @@ pip install -r requirements.txt
 ### 5. Configure Optional API Key
 
 To enable the interactive AI Recycling Advisor and Active Learning cross-checks:
-- Obtain a free API key from Google AI Studio (aistudio.google.com).
+- Obtain an API key from Google AI Studio (aistudio.google.com).
 - Provide the key via Streamlit secrets (`.streamlit/secrets.toml`):
 
 ```toml
@@ -221,11 +227,11 @@ http://localhost:8501
 ```
 
 ### Application Features:
-- **Scan Mode Selection**: Switch between **Live Camera Viewfinder** (webcam snapshot or stream) and **Upload Waste Image** (JPG, PNG, WebP).
-- **Hero Recommendation Card**: Displays the designated recycling or disposal destination with material-specific color themes.
-- **Disposal Instructions**: Step-by-step preparation tips and estimated decomposition timelines.
-- **Attention Heatmap & Bounding Box**: Highlights the detected item with class name and confidence score.
-- **AI Recycling Assistant**: Expandable sidebar assistant to answer specific recycling questions.
+- **Scan Mode Selection**: Switch between Live Camera Viewfinder (webcam snapshot or stream) and Upload Waste Image (JPG, PNG, WebP).
+- **Hero Destination Bin Card**: Displays the designated bin destination (Green for Biodegradable, Blue for Non-Biodegradable, Orange for E-Waste) with category styling.
+- **Disposal Instructions**: Step-by-step preparation tips, degradation timelines, and environmental impact descriptions.
+- **Visual Detection Overlay**: Highlights the detected item with class name, category color bounding box, and confidence score.
+- **AI Recycling Assistant**: Expandable assistant in the sidebar to answer handling and municipal recycling queries.
 
 ---
 
@@ -233,7 +239,7 @@ http://localhost:8501
 
 ### Train YOLOv8 on GPU
 
-The training pipeline uses Automatic Mixed Precision (AMP), cosine learning rate decay, and data augmentations (HSV saturation/value variation and mosaic transforms):
+The training pipeline uses Automatic Mixed Precision (AMP), cosine learning rate decay, and data augmentations:
 
 ```bash
 python train_yolo.py --model yolov8s.pt --epochs 50 --batch_size 16 --device 0
@@ -255,10 +261,10 @@ The best checkpoint is automatically saved to `models/weights/yolov8_waste.pt` a
 OpticBin incorporates a continuous improvement pipeline:
 
 1. **Uncertainty Flagging**: When local detection confidence falls below the calibrated threshold (`0.35`), the active learning pipeline triggers a supervisor review.
-2. **Multimodal Supervisor Cross-Check**: Gemini Vision independently inspects the high-resolution image and returns a detailed assessment with class and confidence scores.
+2. **Multimodal Supervisor Cross-Check**: Gemini Vision independently inspects the high-resolution image and returns an assessment with class and confidence scores.
 3. **Dynamic UI Auto-Correction**: If the supervisor returns a high-confidence determination (>= 70%), the recommendation card, checklist, and bounding box dynamically update to reflect the verified classification.
 4. **Queue Logging**: The image, prediction metadata, and supervisor reasoning are logged to `review_queue/`.
-5. **Continuous Retraining**: Incorporate all verified review queue samples into the training dataset with a single command:
+5. **Continuous Retraining**: Incorporate verified review queue samples into the training dataset:
 
 ```bash
 python add_review_sample_to_dataset.py
@@ -274,9 +280,10 @@ Key application parameters can be tuned in `config/settings.py`:
 
 | Parameter | Default Value | Description |
 |---|---|---|
-| `ACTIVE_LEARNING_CONFIDENCE_THRESHOLD` | `0.35` | Predictions below this threshold trigger the supervisor cross-check |
+| `ACTIVE_LEARNING_CONFIDENCE_THRESHOLD` | `0.35` | Predictions below this threshold trigger supervisor cross-check |
 | `DEFAULT_MODEL` | `"yolov8_unified"` | Active inference engine architecture |
 | `LLM_MODEL` | `"gemini-2.5-flash"` | Gemini model used for supervisor checks and conversational advice |
+| `CLASS_LABELS` | `["biodegradable", "non-biodegradable", "e-waste"]` | Core 3-bin classification categories |
 | `LATENCY_TARGET_MS` | `100` | Target end-to-end latency budget |
 | `MAX_RAM_GB` | `2.5` | Memory ceiling during continuous webcam streaming |
 
