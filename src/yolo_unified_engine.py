@@ -274,40 +274,47 @@ class YOLOUnifiedInferenceEngine(BaseInferenceEngine):
 
     def _map_to_material_class(self, detected_name: str) -> str:
         """Helper to map YOLO class labels to 3 degradability categories."""
-        name = detected_name.lower().strip()
+        name = detected_name.lower().strip().replace(" ", "-").replace("_", "-")
 
-        # Biodegradable: organic matter, food, paper, cardboard, wood, cotton
-        if name in [
+        if name in ("biodegradable", "organic", "compost", "cardboard", "paper"):
+            return "biodegradable"
+        if name in ("non-biodegradable", "nonbio", "nonbiodegradable", "glass", "metal", "plastic"):
+            return "non-biodegradable"
+        if name in ("e-waste", "ewaste", "electronic"):
+            return "e-waste"
+
+        # Check non-biodegradable first so "non-bio" does not get matched by "bio"
+        nonbio_keywords = [
+            "non-bio", "nonbio", "plastic", "bottle", "bag", "container", "wrapper", "packet",
+            "glass", "jar", "wine", "cup", "fork", "knife", "spoon", "bowl", "plate",
+            "metal", "can", "tin", "foil", "aluminum", "rubber", "tyre", "tire",
+            "ceramic", "styrofoam", "foam", "nylon", "polyester", "synthetic",
+        ]
+        if any(kw in name for kw in nonbio_keywords):
+            return "non-biodegradable"
+
+        # Check for e-waste keywords / substrings
+        ewaste_keywords = [
+            "e-waste", "ewaste", "electronic", "battery", "batteries", "phone", "cell", "mobile",
+            "cable", "charger", "circuit", "pcb", "keyboard", "mouse", "laptop",
+            "computer", "monitor", "tv", "microwave", "remote", "headphone", "earphone",
+            "speaker", "bulb", "led", "usb", "wire", "toaster", "appliance", "cord",
+        ]
+        if any(kw in name for kw in ewaste_keywords):
+            return "e-waste"
+
+        # Check for biodegradable keywords / substrings (do not use bare 'bio' to avoid substring clashes)
+        bio_keywords = [
             "biodegradable", "organic", "food", "compost", "fruit", "vegetable",
             "tomato", "potato", "onion", "carrot", "apple", "banana", "orange",
             "broccoli", "lettuce", "bread", "sandwich", "pizza", "donut", "cake",
-            "paper", "book", "newspaper", "magazine", "receipt",
-            "cardboard", "box", "carton",
-            "wood", "cotton", "tea bag", "leaf", "leaves", "plant", "potted plant",
-            "garden waste", "food waste",
-        ]:
+            "paper", "book", "newspaper", "magazine", "receipt", "napkin", "tissue",
+            "cardboard", "box", "carton", "egg", "mushroom", "fungi",
+            "wood", "cotton", "tea", "leaf", "leaves", "plant", "potted plant",
+            "garden", "peel", "leftover", "grain", "rice", "scrap", "coffee",
+        ]
+        if any(kw in name for kw in bio_keywords):
             return "biodegradable"
-
-        # E-Waste: electronics, batteries, cables, circuit boards
-        if name in [
-            "e-waste", "ewaste", "electronic", "electronics",
-            "battery", "batteries", "phone", "cell phone", "mobile phone",
-            "cable", "charger", "circuit board", "pcb", "keyboard",
-            "mouse", "laptop", "computer", "monitor", "tv", "microwave",
-            "remote", "headphone", "earphone", "speaker",
-            "light bulb", "led", "usb", "wire", "toaster",
-        ]:
-            return "e-waste"
-
-        # Non-Biodegradable: plastics, glass, metals, rubber, ceramics
-        if name in [
-            "non-biodegradable", "plastic", "bottle", "plastic bag", "container",
-            "glass", "glass bottle", "jar", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
-            "metal", "can", "soda can", "tin can", "aluminum foil",
-            "rubber", "tyre", "ceramic", "styrofoam", "foam",
-            "nylon", "polyester", "synthetic",
-        ]:
-            return "non-biodegradable"
 
         # Default fallback: non-biodegradable (safer for disposal)
         return "non-biodegradable"

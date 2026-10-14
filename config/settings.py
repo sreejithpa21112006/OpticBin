@@ -135,7 +135,7 @@ WASTE_METADATA: dict[str, dict] = {
         "gradient_from": "#EA580C",
         "gradient_to": "#FB923C",
         "tips": [
-            "⚠️ NEVER throw batteries, phones, or cables in regular trash bins",
+            "NEVER throw batteries, phones, or cables in regular trash bins",
             "Take to authorized e-waste collection centers or manufacturer take-back programs",
             "Remove personal data from devices before recycling",
             "Old chargers, earphones, and cables are all e-waste — don't ignore small items",

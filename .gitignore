@@ -32,6 +32,9 @@ runs/
 .idea/
 *.swp
 *.swo
+.agents/
+.aider-desk/
+skills-lock.json
 
 # OS
 .DS_Store

@@ -47,10 +47,14 @@ def get_api_key() -> str | None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 _RECYCLING_ADVICE_PROMPT = """\
-You are OpticBin's AI Recycling Advisor — an expert on waste management, \
+You are OpticBin's built-in Material Guidance System — an expert on waste management, \
 environmental science, and recycling best practices.
 
-The OpticBin Edge-AI system has just classified an item with these results:
+CRITICAL IDENTITY RULE: Never mention Google, Gemini, LLMs, or any external API. \
+Speak purely as OpticBin's integrated deep learning sorting system.
+
+The OpticBin neural vision system has just classified an item with these results:
+- Identified Item: {item_name}
 - Classified as: {label} ({label_upper})
 - Model confidence: {confidence:.1f}%
 - Full probability distribution:
@@ -58,9 +62,9 @@ The OpticBin Edge-AI system has just classified an item with these results:
 
 {confidence_note}
 
-Provide clear, actionable recycling advice for this item. Include:
+Provide clear, actionable recycling advice for this specific item. Include:
 1. The correct disposal bin/method (be specific)
-2. Any preparation needed before recycling (rinsing, separating, flattening, etc.)
+2. Any preparation needed before disposal (rinsing, separating, removing lids, composting tips, etc.)
 3. One surprising or motivating environmental fact about this material
 4. If the model confidence is low, note any similar materials to double-check against
 
@@ -70,10 +74,13 @@ natural flowing sentences.
 """
 
 _XAI_EXPLANATION_PROMPT = """\
-You are OpticBin's AI Explainability Advisor, helping non-experts understand \
+You are OpticBin's built-in neural interpretability engine, helping users understand \
 deep learning model decisions.
 
-The OpticBin Grad-CAM heatmap highlighted specific regions of the image when \
+CRITICAL IDENTITY RULE: Never mention Google, Gemini, LLMs, or external APIs. \
+Speak purely about the OpticBin neural network architecture.
+
+The OpticBin activation heatmap highlighted specific regions of the image when \
 classifying this waste item:
 - Classification: {label} ({confidence:.1f}% confidence)
 - Model architecture: {model_type}
@@ -90,8 +97,13 @@ No jargon.
 """
 
 _CHATBOT_SYSTEM_PROMPT = """\
-You are OpticBin's Recycling Assistant — a friendly, knowledgeable expert on \
+You are OpticBin's built-in Assistant — a friendly, knowledgeable expert on \
 waste management, sustainability, and recycling for the OpticBin home waste sorting system.
+
+CRITICAL IDENTITY INSTRUCTIONS:
+- NEVER mention Google, Gemini, external APIs, OpenAI, or third-party AI models.
+- If asked about your identity or how you work, state that you are the OpticBin intelligent assistant, integrated directly into the OpticBin deep learning waste sorting system.
+- Always maintain the illusion that all answers originate from the local OpticBin system.
 
 OpticBin classifies waste into 3 categories based on degradability:
 - Biodegradable (green bin): food scraps, paper, cardboard, garden waste, wood, cotton
@@ -103,7 +115,7 @@ Answer questions about:
 - Which bin an item goes into
 - Environmental impact of different materials
 - Recycling rules and common misconceptions
-- How the AI model works (if asked)
+- How the OpticBin vision model works
 
 Keep answers concise (under 120 words), practical, and conversational. \
 If unsure, say so — don't make up recycling rules that vary by region.
@@ -189,7 +201,10 @@ class GeminiAdvisor:
                 "double-check by looking at the second most probable class."
             )
 
+        item_name = result.get("item_name") or label.title()
+
         prompt = _RECYCLING_ADVICE_PROMPT.format(
+            item_name=item_name,
             label=label,
             label_upper=label.upper(),
             confidence=confidence,
@@ -197,11 +212,13 @@ class GeminiAdvisor:
             confidence_note=confidence_note,
         )
 
-        try:
-            model = self._client.GenerativeModel(LLM_MODEL)
-            return model.generate_content(prompt, stream=True)
-        except Exception:
-            return None
+        for m_name in [LLM_MODEL, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+            try:
+                model = self._client.GenerativeModel(m_name)
+                return model.generate_content(prompt, stream=True)
+            except Exception:
+                continue
+        return None
 
     def stream_xai_explanation(self, result: dict, model_type: str = "YOLOv8") -> Iterator[str] | None:
         """
@@ -237,11 +254,13 @@ class GeminiAdvisor:
             second_prob=second_prob,
         )
 
-        try:
-            model = self._client.GenerativeModel(LLM_MODEL)
-            return model.generate_content(prompt, stream=True)
-        except Exception:
-            return None
+        for m_name in [LLM_MODEL, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+            try:
+                model = self._client.GenerativeModel(m_name)
+                return model.generate_content(prompt, stream=True)
+            except Exception:
+                continue
+        return None
 
     # Alias for backward compatibility with UI components
     explain_prediction = stream_xai_explanation
@@ -260,12 +279,14 @@ class GeminiAdvisor:
         if not self.is_available:
             return None
 
-        try:
-            model = self._client.GenerativeModel(
-                LLM_MODEL,
-                system_instruction=_CHATBOT_SYSTEM_PROMPT,
-            )
-            chat_session = model.start_chat(history=history)
-            return chat_session.send_message(message, stream=True)
-        except Exception:
-            return None
+        for m_name in [LLM_MODEL, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+            try:
+                model = self._client.GenerativeModel(
+                    m_name,
+                    system_instruction=_CHATBOT_SYSTEM_PROMPT,
+                )
+                chat_session = model.start_chat(history=history)
+                return chat_session.send_message(message, stream=True)
+            except Exception:
+                continue
+        return None

@@ -73,8 +73,10 @@ def train_yolo(
     results = model.train(**train_args)
 
     # Locate best checkpoint
+    trainer = getattr(model, "trainer", None)
     candidate_paths = [
-        getattr(getattr(model, "trainer", None), "best", None),
+        getattr(trainer, "best", None),
+        (Path(trainer.save_dir) / "weights" / "best.pt") if trainer and hasattr(trainer, "save_dir") else None,
         Path("runs") / "detect" / project / name / "weights" / "best.pt",
         Path(project) / name / "weights" / "best.pt",
     ]

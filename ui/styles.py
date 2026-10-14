@@ -19,8 +19,18 @@ def apply_styles() -> None:
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
             /* ───── Global Theme ───── */
-            * {
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+            html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], .stMarkdown, p, h1, h2, h3, h4, h5, h6 {
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            }
+
+            /* Protect Streamlit icon fonts from being overridden */
+            [data-testid="stIconMaterial"],
+            [data-testid="stExpanderToggleIcon"],
+            [class*="material-symbols"],
+            [class*="material-icons"],
+            .material-symbols-rounded,
+            .material-icons {
+                font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important;
             }
 
             .block-container {
@@ -71,10 +81,7 @@ def apply_styles() -> None:
                 font-size: 2.8rem;
                 font-weight: 900;
                 letter-spacing: -0.03em;
-                background: linear-gradient(135deg, #22C55E 0%, #3B82F6 50%, #F97316 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
+                color: #FFFFFF;
                 margin: 0;
                 line-height: 1.1;
             }
@@ -98,7 +105,7 @@ def apply_styles() -> None:
             .ob-legend-item {
                 display: flex;
                 align-items: center;
-                gap: 0.4rem;
+                gap: 0.5rem;
                 font-size: 0.82rem;
                 font-weight: 600;
                 opacity: 0.8;
@@ -106,6 +113,37 @@ def apply_styles() -> None:
                 border-radius: 20px;
                 background: rgba(255,255,255,0.04);
                 border: 1px solid rgba(255,255,255,0.08);
+            }
+
+            .ob-legend-dot {
+                width: 9px;
+                height: 9px;
+                border-radius: 50%;
+                display: inline-block;
+                flex-shrink: 0;
+            }
+
+            .ob-dot-bio {
+                background: #22C55E;
+                box-shadow: 0 0 8px rgba(34,197,94,0.5);
+            }
+
+            .ob-dot-nonbio {
+                background: #3B82F6;
+                box-shadow: 0 0 8px rgba(59,130,246,0.5);
+            }
+
+            .ob-dot-ewaste {
+                background: #F97316;
+                box-shadow: 0 0 8px rgba(249,115,22,0.5);
+            }
+
+            .ob-hero-bin-dot {
+                width: 14px;
+                height: 14px;
+                border-radius: 50%;
+                display: inline-block;
+                flex-shrink: 0;
             }
 
             /* ───── Glassmorphism Hero Card ───── */

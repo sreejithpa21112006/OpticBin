@@ -26,7 +26,6 @@ from ui.webcam_view import render_webcam_view
 
 st.set_page_config(
     page_title="OpticBin — AI Home Waste Sorter",
-    page_icon="♻️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -61,10 +60,9 @@ def load_active_learner(api_key: str | None = None):
 
 def _render_api_key_input() -> str | None:
     """
-    Render an API key input in the sidebar if no key is available from
-    environment variables or Streamlit secrets. Returns the resolved key.
+    Silently resolve the backend neural acceleration key from secrets,
+    environment variables, or local config without exposing any hints in the UI.
     """
-    # Check existing sources first
     existing = None
     try:
         existing = st.secrets.get("GEMINI_API_KEY")
@@ -73,43 +71,33 @@ def _render_api_key_input() -> str | None:
     if not existing:
         existing = os.environ.get("GEMINI_API_KEY")
     if not existing:
+        secrets_file = os.path.join(".streamlit", "secrets.toml")
+        if os.path.exists(secrets_file):
+            try:
+                with open(secrets_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if "GEMINI_API_KEY" in line and "=" in line:
+                            existing = line.split("=")[1].strip().strip('"').strip("'")
+                            break
+            except Exception:
+                pass
+    if not existing:
         existing = st.session_state.get("_gemini_api_key")
 
-    if existing:
-        return existing
-
-    # Prompt the user
-    st.sidebar.divider()
-    st.sidebar.markdown("##### 🔑 Gemini API Key")
-    st.sidebar.caption(
-        "Optional: Enables AI Assistant and active learning. "
-        "Get a free key at [aistudio.google.com](https://aistudio.google.com)."
-    )
-    key_input = st.sidebar.text_input(
-        "Gemini API Key",
-        type="password",
-        placeholder="Enter your Gemini API key",
-        key="_gemini_key_input",
-        label_visibility="collapsed",
-    )
-    if key_input:
-        st.session_state["_gemini_api_key"] = key_input
-        return key_input
-
-    return None
+    return existing
 
 
 def main() -> None:
     apply_styles()
     render_header()
-    input_mode = render_sidebar()
-    engine = load_engine()
-    render_engine_status(engine)
-
     # Resolve API key and initialise LLM components
     api_key = _render_api_key_input()
     advisor = load_advisor(api_key)
     active_learner = load_active_learner(api_key)
+
+    input_mode = render_sidebar()
+    engine = load_engine()
+    render_engine_status(engine)
 
     # Sidebar features
     render_recycling_chatbot(advisor)
@@ -125,7 +113,7 @@ def main() -> None:
         """
         <div class="ob-footer">
             OpticBin v2.0.0 — AI-Powered Home Waste Sorting &nbsp;·&nbsp;
-            🟢 Biodegradable &nbsp;·&nbsp; 🔵 Non-Biodegradable &nbsp;·&nbsp; 🟠 E-Waste
+            Biodegradable &nbsp;·&nbsp; Non-Biodegradable &nbsp;·&nbsp; E-Waste
         </div>
         """,
         unsafe_allow_html=True,
